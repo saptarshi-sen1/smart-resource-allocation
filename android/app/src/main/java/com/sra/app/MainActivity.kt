@@ -25,7 +25,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var binding: ActivityMainBinding
     
     // REPLACE THIS WITH YOUR FIREBASE HOSTING URL
-    private val webAppUrl = "https://smart-resource-allocation-abc.web.app" 
+    private val webAppUrl = "https://smart-resource-allocatio-ff7e5.web.app/" 
     
     private var filePathCallback: ValueCallback<Array<Uri>>? = null
 
