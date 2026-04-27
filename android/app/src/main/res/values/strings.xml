@@ -1,0 +1,4 @@
+<resources>
+    <string name="app_name">Smart Resource Allocation</string>
+    <string name="offline_message">No internet connection. Please check your network and try again.</string>
+</resources>
