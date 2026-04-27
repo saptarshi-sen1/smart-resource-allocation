@@ -8,6 +8,8 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    env:
+      HAS_KEYSTORE: ${{ secrets.KEYSTORE_BASE64 != '' }}
     
     defaults:
       run:
@@ -47,7 +49,7 @@ jobs:
         KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
         KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
       run: |
-        if [ -n "${{ secrets.KEYSTORE_BASE64 }}" ]; then
+        if [ "$HAS_KEYSTORE" = "true" ]; then
           gradle assembleRelease bundleRelease
         else
           echo "No keystore configured, building debug APK instead."
@@ -55,21 +57,21 @@ jobs:
         fi
 
     - name: Upload Release APK
-      if: ${{ secrets.KEYSTORE_BASE64 != '' }}
+      if: env.HAS_KEYSTORE == 'true'
       uses: actions/upload-artifact@v4
       with:
         name: release-apk
         path: android/app/build/outputs/apk/release/app-release.apk
 
     - name: Upload Release AAB
-      if: ${{ secrets.KEYSTORE_BASE64 != '' }}
+      if: env.HAS_KEYSTORE == 'true'
       uses: actions/upload-artifact@v4
       with:
         name: release-aab
         path: android/app/build/outputs/bundle/release/app-release.aab
 
     - name: Upload Debug APK (Fallback)
-      if: ${{ secrets.KEYSTORE_BASE64 == '' }}
+      if: env.HAS_KEYSTORE != 'true'
       uses: actions/upload-artifact@v4
       with:
         name: debug-apk
