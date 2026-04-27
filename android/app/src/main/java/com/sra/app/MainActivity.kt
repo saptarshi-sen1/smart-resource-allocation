@@ -36,7 +36,9 @@ class MainActivity : AppCompatActivity() {
 
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
-        setTheme(R.style.Theme_WebApp) // Remove splash screen theme
+        // Set proper theme before onCreate
+        setupThemeMode()
+        setTheme(R.style.Theme_WebApp)
         super.onCreate(savedInstanceState)
         
         binding = ActivityMainBinding.inflate(layoutInflater)
@@ -47,6 +49,13 @@ class MainActivity : AppCompatActivity() {
         setupOfflineLayout()
 
         loadWebApp()
+    }
+
+    private fun setupThemeMode() {
+        val nightModeFlags = resources.configuration.uiMode and android.content.res.Configuration.UI_MODE_NIGHT_MASK
+        if (nightModeFlags == android.content.res.Configuration.UI_MODE_NIGHT_YES) {
+            // Optional: Set some flags for dark mode if needed
+        }
     }
 
     @SuppressLint("SetJavaScriptEnabled")
@@ -60,18 +69,36 @@ class MainActivity : AppCompatActivity() {
                 setSupportZoom(false)
                 allowFileAccess = true
                 mediaPlaybackRequiresUserGesture = false
+                
+                // CRITICAL: Custom UserAgent to allow Google Login in WebView
+                // We remove "wv" from the string which Google uses to detect and block WebViews
+                val defaultUA = userAgentString
+                userAgentString = defaultUA.replace("; wv", "")
+                    .replace("Version/\\d+\\.\\d+\\s".toRegex(), "")
+                
+                // Enable Dark Mode support for WebView content
+                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+                    val nightModeFlags = resources.configuration.uiMode and android.content.res.Configuration.UI_MODE_NIGHT_MASK
+                    if (nightModeFlags == android.content.res.Configuration.UI_MODE_NIGHT_YES) {
+                        forceDark = WebSettings.FORCE_DARK_ON
+                    } else {
+                        forceDark = WebSettings.FORCE_DARK_OFF
+                    }
+                }
             }
 
             webViewClient = object : WebViewClient() {
                 override fun onPageStarted(view: WebView?, url: String?, favicon: Bitmap?) {
                     super.onPageStarted(view, url, favicon)
                     binding.progressBar.visibility = View.VISIBLE
+                    binding.loadingText.visibility = View.VISIBLE
                     binding.offlineLayout.visibility = View.GONE
                 }
 
                 override fun onPageFinished(view: WebView?, url: String?) {
                     super.onPageFinished(view, url)
                     binding.progressBar.visibility = View.GONE
+                    binding.loadingText.visibility = View.GONE
                     binding.swipeRefreshLayout.isRefreshing = false
                 }
 
@@ -88,9 +115,14 @@ class MainActivity : AppCompatActivity() {
 
                 override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean {
                     val url = request?.url.toString()
-                    if (url.startsWith(webAppUrl)) {
-                        return false // Open in WebView
+                    
+                    // Allow Firebase Auth and Google Login URLs to stay in the WebView
+                    if (url.startsWith(webAppUrl) || 
+                        url.contains("accounts.google.com") || 
+                        url.contains("firebaseapp.com")) {
+                        return false 
                     }
+                    
                     // Open external links in browser
                     startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
                     return true
@@ -136,6 +168,7 @@ class MainActivity : AppCompatActivity() {
     private fun showOfflineLayout() {
         binding.webView.visibility = View.GONE
         binding.progressBar.visibility = View.GONE
+        binding.loadingText.visibility = View.GONE
         binding.swipeRefreshLayout.isRefreshing = false
         binding.offlineLayout.visibility = View.VISIBLE
     }
