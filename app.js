@@ -15,6 +15,7 @@ import {
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
   signInWithRedirect,
+  signInWithPopup,
   getRedirectResult,
   signOut,
   onAuthStateChanged
@@ -32,6 +33,7 @@ let adminMap = null;
 let heatLayer = null;
 const TOP_N = 3;
 let adminShowAll = false;
+let isInitializingAuth = true;
 let ngoAllMatches = [];
 let ngoShowAll = false;
 let volAllMatches = [];
@@ -442,14 +444,14 @@ function handleGoogleError(err) {
 }
 
 document.getElementById("googleLoginBtn").addEventListener("click", () => {
-  signInWithRedirect(auth, googleProvider);
+  signInWithPopup(auth, googleProvider).catch(handleGoogleError);
 });
 
 // Google Register
 document.getElementById("googleRegBtn").addEventListener("click", () => {
   const role = document.getElementById("regRole").value;
   sessionStorage.setItem("pendingRegistrationRole", role);
-  signInWithRedirect(auth, googleProvider);
+  signInWithPopup(auth, googleProvider).catch(handleGoogleError);
 });
 
 // Logout
@@ -486,27 +488,18 @@ document.getElementById("showRegisterBtn").addEventListener("click", () => {
 });
 
 // ─── Auth Initialization ───────────────────────────────────────────────────
-onAuthStateChanged(auth, async user => {
-  if (user) {
-    await handleAuthSuccess(user);
-  } else {
-    setView("auth");
-  }
-});
-
 (async () => {
   const overlay = document.getElementById("loading-overlay");
   if (overlay) overlay.classList.remove("hidden");
   
   try {
+    // Process redirect result first
     const result = await getRedirectResult(auth);
     if (result && result.user) {
       const pendingRole = sessionStorage.getItem("pendingRegistrationRole");
       if (pendingRole) {
-        console.log("Saving pending role:", pendingRole);
         await saveUserRole(result.user.uid, result.user.email, pendingRole);
         sessionStorage.removeItem("pendingRegistrationRole");
-        await handleAuthSuccess(result.user, pendingRole);
       }
     }
   } catch (err) {
@@ -514,8 +507,18 @@ onAuthStateChanged(auth, async user => {
     if (err.code !== 'auth/popup-closed-by-user') {
       alert("Google sign-in failed: " + err.message);
     }
-    setView("auth");
   }
+
+  // Now register the state listener
+  onAuthStateChanged(auth, async user => {
+    isInitializingAuth = false;
+    if (user) {
+      await handleAuthSuccess(user);
+    } else {
+      setView("auth");
+    }
+    if (overlay) overlay.classList.add("hidden");
+  });
 })();
 
 // ─── Geolocation Buttons ────────────────────────────────────────────────────
