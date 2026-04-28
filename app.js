@@ -215,20 +215,52 @@ async function handleAuthSuccess(user, roleOverride) {
   currentUser = user;
   let role = roleOverride || await getUserRole(user.uid);
 
-  // Check if admin
   const isAdmin = ADMIN_EMAILS_LOWER.includes((user.email || "").toLowerCase());
   if (isAdmin) role = "Admin";
-
-  if (!role) role = "Volunteer"; // Fallback
+  if (!role) role = "Volunteer";
   currentRole = role;
 
-  // Update last login
   await setDoc(doc(db, "users", user.uid), { lastLogin: new Date().toISOString() }, { merge: true });
-  if (role === "Volunteer") {
-      await setDoc(doc(db, "volunteers", user.uid), { lastLogin: new Date().toISOString() }, { merge: true });
+  
+  const badge = document.getElementById("userRoleBadge");
+  if (badge) badge.textContent = role;
+  
+  // Populate Navigation Links
+  const navLinks = document.getElementById("dashboard-nav");
+  if (navLinks) {
+    navLinks.innerHTML = "";
+    const links = {
+      "Volunteer": [
+        { name: "My Profile", target: "volunteer-dashboard" },
+        { name: "History", target: "volunteerTimeline" }
+      ],
+      "NGO": [
+        { name: "Requests", target: "ngo-dashboard" },
+        { name: "Scanned", target: "ngo-dashboard" }, // Add specific IDs if needed
+        { name: "History", target: "ngoTimeline" }
+      ],
+      "Admin": [
+        { name: "Overview", target: "admin-dashboard" },
+        { name: "Manual Match", target: "admin-dashboard" },
+        { name: "History", target: "adminTimeline" }
+      ]
+    };
+    
+    (links[role] || []).forEach(l => {
+      const a = document.createElement("a");
+      a.className = "nav-link";
+      a.textContent = l.name;
+      a.onclick = () => {
+        document.querySelectorAll(".nav-link").forEach(nl => nl.classList.remove("active"));
+        a.classList.add("active");
+        // Scroll to target or show section
+        const targetEl = document.getElementById(l.target);
+        if (targetEl) targetEl.scrollIntoView({ behavior: 'smooth' });
+      };
+      navLinks.appendChild(a);
+    });
   }
 
-  document.getElementById("userRoleBadge").textContent = role;
   setView("app");
 
   if (role === "Admin") {
@@ -356,9 +388,20 @@ document.getElementById("googleRegBtn").addEventListener("click", () => {
 
 // Logout
 document.getElementById("logoutBtn").addEventListener("click", async () => {
+  // Sign out from Firebase
   await signOut(auth);
+  // Clear any persisted auth data
+  try { localStorage.clear(); } catch(e) {}
+  try { sessionStorage.clear(); } catch(e) {}
   currentUser = null;
   currentRole = null;
+  // Reset auth UI to login view
+  const loginForm = document.getElementById("loginForm");
+  const registerForm = document.getElementById("registerForm");
+  loginForm.classList.add("active");
+  registerForm.classList.remove("active");
+  document.getElementById("showLoginBtn").classList.add("active");
+  document.getElementById("showRegisterBtn").classList.remove("active");
   setView("auth");
 });
 
