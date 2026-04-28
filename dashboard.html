@@ -16,19 +16,32 @@
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
   
+  <!-- Leaflet for Map & Heatmap -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+  <script src="https://unpkg.com/leaflet.heat/dist/leaflet-heat.js"></script>
+  
   <link rel="stylesheet" href="style.css" />
 </head>
 <body class="dark-theme">
+  <div id="loading-overlay" class="hidden" style="position:fixed; top:0; left:0; width:100%; height:100%; background:var(--bg); z-index:2000; display:flex; flex-direction:column; align-items:center; justify-content:center;">
+    <div class="spinner" style="width:50px; height:50px;"></div>
+    <p style="margin-top:1rem; color:var(--primary); font-weight:600;">Loading CrisisConnect...</p>
+  </div>
+  
   <div class="top-controls">
     <div id="google_translate_element"></div>
-    <div style="display:flex; align-items:center; gap: 10px;">
-      <span style="font-size: 0.9rem; color: var(--text-main);">Dark Theme</span>
+    <div class="theme-controls">
+      <span class="theme-icon">🌞</span>
       <label class="theme-switch">
-        <input type="checkbox" id="themeToggle" checked onchange="document.body.classList.toggle('dark-theme', this.checked)">
+        <input type="checkbox" id="themeToggle" onchange="handleThemeToggle(this.checked)">
         <span class="slider"></span>
       </label>
+      <span class="theme-icon">🌙</span>
     </div>
   </div>
+
+  <script src="theme.js"></script>
   <script type="text/javascript">
     function googleTranslateElementInit() {
       new google.translate.TranslateElement({pageLanguage: 'en', includedLanguages: 'en,hi,bn', layout: google.translate.TranslateElement.InlineLayout.SIMPLE}, 'google_translate_element');
@@ -39,8 +52,8 @@
   <!-- AUTHENTICATION SECTION -->
   <div id="auth-section" class="container auth-container active">
     <div class="card auth-card">
-      <h1 class="logo text-center">CrisisConnect</h1>
-      <p class="subtitle text-center">Login or Register to access your dashboard</p>
+      <h1 class="logo text-center" style="font-size: 2.5rem; margin-bottom: 1rem;">CrisisConnect</h1>
+      <p class="subtitle text-center">Access your resource allocation dashboard</p>
       
       <div class="auth-tabs">
         <button id="showLoginBtn" class="auth-tab-btn active">Login</button>
@@ -50,7 +63,7 @@
       <!-- Login Form -->
       <form id="loginForm" class="auth-form active">
         <div class="form-group">
-          <label for="loginEmail">Email</label>
+          <label for="loginEmail">Email Address</label>
           <input type="email" id="loginEmail" required />
         </div>
         <div class="form-group">
@@ -59,20 +72,23 @@
         </div>
         <button type="submit" class="btn primary-btn">Login</button>
         <div class="divider"><span>OR</span></div>
-        <button type="button" id="googleLoginBtn" class="btn secondary-btn">Login with Google</button>
+        <button type="button" id="googleLoginBtn" class="btn secondary-btn" style="background: var(--card);">
+            <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" width="18" height="18" style="margin-right: 10px;">
+            Continue with Google
+        </button>
       </form>
 
       <!-- Register Form -->
       <form id="registerForm" class="auth-form">
         <div class="form-group">
-          <label for="regRole">I am a...</label>
+          <label for="regRole">Register as</label>
           <select id="regRole" required>
             <option value="Volunteer">Volunteer</option>
             <option value="NGO">NGO / Organization</option>
           </select>
         </div>
         <div class="form-group">
-          <label for="regEmail">Email</label>
+          <label for="regEmail">Email Address</label>
           <input type="email" id="regEmail" required />
         </div>
         <div class="form-group">
@@ -81,19 +97,22 @@
         </div>
         <button type="submit" class="btn primary-btn">Create Account</button>
         <div class="divider"><span>OR</span></div>
-        <button type="button" id="googleRegBtn" class="btn secondary-btn">Register with Google</button>
+        <button type="button" id="googleRegBtn" class="btn secondary-btn" style="background: var(--card);">
+            <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" width="18" height="18" style="margin-right: 10px;">
+            Register with Google
+        </button>
       </form>
     </div>
   </div>
 
   <!-- MAIN APP SECTION -->
   <div id="app-section" class="hidden">
-    <nav class="navbar">
-      <div class="nav-content">
+    <nav class="navbar" style="position: sticky; top: 50px; background: var(--glass); backdrop-filter: blur(10px); border-bottom: 1px solid var(--border); padding: 0.75rem 0; z-index: 99;">
+      <div class="container" style="padding: 0 1rem; display: flex; justify-content: space-between; align-items: center; margin: 0 auto;">
         <h1 class="logo">CrisisConnect</h1>
-        <div class="nav-links">
-          <span id="userRoleBadge" class="badge badge-active" style="margin-right: 15px;">Role</span>
-          <button id="logoutBtn" class="btn secondary-btn" style="padding: 0.4rem 1rem;">Logout</button>
+        <div style="display: flex; align-items: center; gap: 1rem;">
+          <span id="userRoleBadge" class="badge badge-active" style="padding: 0.4rem 1rem; border-radius: 8px;">Role</span>
+          <button id="logoutBtn" class="btn secondary-btn" style="padding: 0.5rem 1rem; font-size: 0.9rem; width: auto;">Logout</button>
         </div>
       </div>
     </nav>
@@ -102,9 +121,10 @@
       
       <!-- NGO DASHBOARD -->
       <section id="ngo-dashboard" class="role-dashboard hidden">
-        <div class="split-layout">
-          <form id="requestForm" class="card form-card">
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 2rem;">
+          <form id="requestForm" class="card">
             <h2><span class="icon">📝</span> NGO Request Form</h2>
+            <p class="subtitle">Submit details of your resource requirements</p>
             
             <div class="form-group">
               <label for="ngoName">NGO Name</label>
@@ -112,13 +132,13 @@
             </div>
             
             <div class="form-group">
-              <label for="needType">Need Type (e.g., Food, Shelter, Medical)</label>
-              <input type="text" id="needType" required />
+              <label for="needType">Need Type</label>
+              <input type="text" id="needType" placeholder="Food, Shelter, Medical..." required />
             </div>
             
             <div class="form-group">
-              <label for="requestDescription">Detailed Description (AI Verified)</label>
-              <textarea id="requestDescription" rows="3" placeholder="Describe the situation... (e.g., Urgent need for medical supplies for 50 people)" required></textarea>
+              <label for="requestDescription">Description</label>
+              <textarea id="requestDescription" rows="3" placeholder="Urgent help needed..." required></textarea>
             </div>
             
             <div class="form-group">
@@ -126,7 +146,7 @@
               <input type="text" id="requestLocation" required />
             </div>
 
-            <div class="form-row">
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
               <div class="form-group">
                 <label>Latitude</label>
                 <input type="number" step="any" id="requestLat" />
@@ -136,15 +156,15 @@
                 <input type="number" step="any" id="requestLng" />
               </div>
             </div>
-            <button type="button" id="ngoGetLocationBtn" class="btn secondary-btn" style="margin-bottom: 1rem;">Get My GPS Location</button>
+            <button type="button" id="ngoGetLocationBtn" class="btn secondary-btn" style="margin-bottom: 1.5rem; font-size: 0.9rem;">📍 Use Current Location</button>
             
-            <div class="form-row">
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
               <div class="form-group">
                 <label for="urgency">Urgency</label>
                 <select id="urgency" required>
                   <option value="Low">Low</option>
                   <option value="Medium">Medium</option>
-                  <option value="High">High (Life-threatening)</option>
+                  <option value="High">High</option>
                 </select>
               </div>
               <div class="form-group">
@@ -156,91 +176,95 @@
             <button type="submit" class="btn primary-btn">Submit Request</button>
           </form>
 
-          <div class="card form-card ocr-card">
-            <h2><span class="icon">📷</span> Scan Paper Survey</h2>
-            <p class="subtitle">Upload an image of a paper field report</p>
+          <div class="card">
+            <h2><span class="icon">📷</span> OCR Survey Scan</h2>
+            <p class="subtitle">Upload field report for automatic processing</p>
             <div class="file-upload-wrapper">
               <input type="file" id="surveyImage" accept="image/*" />
-              <label for="surveyImage" class="file-upload-label">Choose an image or drag & drop here</label>
+              <div class="file-upload-label">
+                  <div>
+                      <span style="font-size: 2rem; display: block; margin-bottom: 0.5rem;">📁</span>
+                      <span>Click or drag image here</span>
+                  </div>
+              </div>
             </div>
             <div id="ocrPreview" class="image-preview"></div>
             <div id="ocrStatus" class="status-msg hidden">
               <div class="spinner"></div>
-              <span id="ocrStatusText">Processing text...</span>
+              <span id="ocrStatusText">Analyzing...</span>
             </div>
-            <button id="processOcrBtn" class="btn secondary-btn" disabled>Process Survey</button>
+            <button id="processOcrBtn" class="btn secondary-btn" disabled>Process Document</button>
           </div>
         </div>
 
-        <!-- Volunteer Search + Key Exchange (NGO) -->
-        <div class="card matching-card" style="margin-top: 2rem;">
-          <div class="matching-header">
+        <!-- Matching -->
+        <div class="card" style="margin-top: 2rem;">
+          <div class="matching-header" style="background: transparent;">
             <div>
-              <h2>🔍 Find & Match a Volunteer</h2>
-              <p class="subtitle">Search by skill, then confirm the match using both keys</p>
+              <h2>🔍 Match Volunteers</h2>
+              <p class="subtitle">Find volunteers by skills</p>
             </div>
           </div>
-          <div style="padding: 1rem 2rem; border-bottom: 1px solid var(--border-color); display:flex; gap:0.75rem; align-items:center; background: var(--bg-color);">
-            <input type="text" id="volSkillSearch" placeholder="Search by skill (e.g. Medical, Food)" style="flex:1; max-width:320px;" />
+          <div style="padding: 1.5rem 2rem; border-bottom: 1px solid var(--border); display:flex; gap:0.75rem; align-items:center;">
+            <input type="text" id="volSkillSearch" placeholder="Search skills..." style="flex:1; max-width: none;" />
             <button id="volSearchBtn" class="btn primary-btn" style="width:auto;">Search</button>
           </div>
           <ul id="volunteerSearchList" class="matches-list"></ul>
 
           <!-- Key Exchange Platform -->
-          <div id="keyExchangeBox" class="hidden" style="padding: 1.5rem 2rem; border-top: 1px solid var(--border-color); background: #fffde7;">
-            <h3 style="margin-bottom:1rem;">🔐 Confirm Match via Key Exchange</h3>
-            <div id="selectedVolDisplay" style="margin-bottom:1rem; font-weight:500;"></div>
-            <div class="form-row">
+          <div id="keyExchangeBox" class="hidden" style="padding: 2rem; border-top: 1px solid var(--border); background: var(--bg);">
+            <h3 style="margin-bottom:1rem;">🔐 Confirm Match</h3>
+            <div id="selectedVolDisplay" style="margin-bottom:1.5rem; font-weight:600;"></div>
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1.5rem; margin-bottom: 2rem;">
               <div class="form-group">
-                <label>Enter Volunteer's Key</label>
-                <input type="text" id="enteredVolKey" placeholder="e.g. A3F9K2" style="font-family:monospace;" />
+                <label>Volunteer Key</label>
+                <input type="text" id="enteredVolKey" placeholder="XXXXXX" style="font-family:monospace; text-transform: uppercase;" />
               </div>
               <div class="form-group">
-                <label>Your NGO Key (auto-filled)</label>
-                <input type="text" id="ngoKeyDisplay" readonly style="font-family:monospace; color:#1a73e8; background:#f5f5f5;" />
+                <label>Your NGO Key</label>
+                <input type="text" id="ngoKeyDisplay" readonly style="font-family:monospace; background: var(--border);" />
               </div>
             </div>
-            <div style="display:flex; gap:1rem; flex-wrap:wrap;">
-              <button id="confirmMatchBtn" class="btn primary-btn" style="width:auto;">✅ Confirm Match</button>
+            <div style="display:flex; gap:1rem;">
+              <button id="confirmMatchBtn" class="btn primary-btn" style="width:auto;">Verify & Confirm</button>
               <button id="clearMatchSelBtn" class="btn secondary-btn" style="width:auto;">Cancel</button>
             </div>
           </div>
         </div>
 
-        <div class="card matching-card" style="margin-top: 2rem;">
-          <div class="matching-header" style="flex-wrap: wrap; gap: 1rem;">
-            <h2>Your Matches</h2>
-            <div class="filter-group" style="display: flex; gap: 0.5rem; flex-grow: 1; justify-content: flex-end;">
-              <input type="text" id="ngoMatchSearch" placeholder="Search matches..." style="max-width: 200px; padding: 0.4rem;" />
-              <select id="ngoMatchSort" style="max-width: 150px; padding: 0.4rem;">
-                <option value="score_desc">Score (High-Low)</option>
-                <option value="date_desc">Newest</option>
+        <div class="card" style="margin-top: 2rem;">
+          <div class="matching-header" style="background: transparent;">
+            <h2>Recent Matches</h2>
+            <div style="display: flex; gap: 0.5rem; align-items: center;">
+              <input type="text" id="ngoMatchSearch" placeholder="Filter..." style="width: 150px; padding: 0.5rem; margin:0;" />
+              <select id="ngoMatchSort" style="width: 150px; padding: 0.5rem; margin:0;">
+                <option value="score_desc">Best Score</option>
+                <option value="date_desc">Latest</option>
               </select>
             </div>
           </div>
           <div class="matches-container">
             <ul id="ngoMatchesList" class="matches-list">
-              <li class="empty-state">No matches yet.</li>
+              <li class="empty-state">Loading matches...</li>
             </ul>
-            <button id="ngoShowMoreBtn" class="btn secondary-btn hidden" style="margin: 1rem auto; display: block;">Show More</button>
+            <button id="ngoShowMoreBtn" class="btn secondary-btn hidden" style="margin: 1.5rem auto; display: block; width: auto;">View More</button>
           </div>
         </div>
       </section>
 
       <!-- VOLUNTEER DASHBOARD -->
       <section id="volunteer-dashboard" class="role-dashboard hidden">
-        <div class="split-layout">
-          <form id="volunteerForm" class="card form-card">
-            <h2><span class="icon">🤝</span> My Volunteer Profile</h2>
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 2rem;">
+          <form id="volunteerForm" class="card">
+            <h2>🤝 My Profile</h2>
+            <p class="subtitle">Keep your details updated for better matching</p>
 
-            <!-- Unique Key Display -->
-            <div class="form-group" style="background:#e8f0fe; border:1px solid #c5d8f6; border-radius:8px; padding:0.75rem 1rem;">
-              <label style="margin-bottom:4px;">🔑 Your Unique Volunteer Key</label>
+            <div class="form-group" style="background: var(--border); border-radius:12px; padding:1.25rem;">
+              <label style="text-align: left; margin-top: 0; color: var(--text);">🔑 Your Exchange Key</label>
               <div style="display:flex; gap:0.5rem; align-items:center;">
-                <input type="text" id="volUniqueKey" readonly style="font-family:monospace; font-weight:700; color:#1a73e8; background:#f5f5f5; flex:1;" />
-                <button type="button" id="copyVolKeyBtn" class="btn secondary-btn" style="width:auto; padding:0.5rem 0.75rem;">Copy</button>
+                <input type="text" id="volUniqueKey" readonly style="font-family:monospace; font-weight:700; color: var(--primary); background: var(--bg); flex:1; margin:0;" />
+                <button type="button" id="copyVolKeyBtn" class="btn secondary-btn" style="width:auto; padding:0.6rem 1rem;">Copy</button>
               </div>
-              <small style="color:#555;">Share this key with an NGO to confirm a match.</small>
             </div>
 
             <div class="form-group">
@@ -249,16 +273,16 @@
             </div>
 
             <div class="form-group">
-              <label for="volSkills">Skills (comma separated)</label>
-              <input type="text" id="volSkills" placeholder="Swimming, First Aid, Cooking" required />
+              <label for="volSkills">Skills</label>
+              <input type="text" id="volSkills" placeholder="First Aid, Driving..." required />
             </div>
 
             <div class="form-group">
-              <label for="volLocation">Location Name</label>
+              <label for="volLocation">Location</label>
               <input type="text" id="volLocation" required />
             </div>
 
-            <div class="form-row">
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
               <div class="form-group">
                 <label>Latitude</label>
                 <input type="number" step="any" id="volLat" />
@@ -268,35 +292,28 @@
                 <input type="number" step="any" id="volLng" />
               </div>
             </div>
-            <button type="button" id="volGetLocationBtn" class="btn secondary-btn" style="margin-bottom: 1rem;">Get My GPS Location</button>
+            <button type="button" id="volGetLocationBtn" class="btn secondary-btn" style="margin-bottom: 1.5rem;">📍 Get Location</button>
             
             <div class="form-group">
-              <label for="volAvailability">Availability</label>
+              <label for="volAvailability">Status</label>
               <select id="volAvailability" required>
-                <option value="available">Available Now</option>
-                <option value="busy">Busy / Unavailable</option>
+                <option value="available">Available</option>
+                <option value="busy">Unavailable</option>
               </select>
             </div>
 
             <button type="submit" class="btn primary-btn">Update Profile</button>
           </form>
 
-          <div class="card matching-card">
-            <div class="matching-header" style="flex-wrap: wrap; gap: 1rem;">
-              <h2>My Assignments / Matches</h2>
-              <div class="filter-group" style="display: flex; gap: 0.5rem; flex-grow: 1; justify-content: flex-end;">
-                <input type="text" id="volMatchSearch" placeholder="Search..." style="max-width: 150px; padding: 0.4rem;" />
-                <select id="volMatchSort" style="max-width: 150px; padding: 0.4rem;">
-                  <option value="score_desc">Score (High-Low)</option>
-                  <option value="date_desc">Newest</option>
-                </select>
-              </div>
+          <div class="card">
+            <div class="matching-header" style="background: transparent;">
+              <h2>Assignments</h2>
             </div>
             <div class="matches-container">
               <ul id="volMatchesList" class="matches-list">
-                <li class="empty-state">No assignments yet.</li>
+                <li class="empty-state">No active matches.</li>
               </ul>
-              <button id="volShowMoreBtn" class="btn secondary-btn hidden" style="margin: 1rem auto; display: block;">Show More</button>
+              <button id="volShowMoreBtn" class="btn secondary-btn hidden" style="margin: 1.5rem auto; display: block; width: auto;">Show More</button>
             </div>
           </div>
         </div>
@@ -306,103 +323,135 @@
       <section id="admin-dashboard" class="role-dashboard hidden">
         <div class="admin-dashboard">
           
-          <div class="dashboard-graphs">
-            <div class="card graph-card" style="background: linear-gradient(145deg, rgba(30,41,59,0.9), rgba(15,23,42,0.8));">
-              <h3>Needs Breakdown</h3>
-              <div style="position: relative; height: 300px; width: 100%;">
+          <div class="card" style="margin-top: 2rem;">
+            <h3>Resource Density Heatmap</h3>
+            <p class="subtitle">Visualizing real-time need distribution across regions</p>
+            <div id="adminHeatmap" style="height: 450px; width: 100%; border-radius: 12px; margin-top: 1rem; border: 1px solid var(--border);"></div>
+          </div>
+
+          <div class="dashboard-graphs" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 2rem; margin-top: 2rem;">
+            <div class="card" style="padding: 1.5rem;">
+              <h3 style="margin-bottom: 1.5rem;">Needs Distribution</h3>
+              <div style="height: 250px;">
                 <canvas id="needsChart"></canvas>
               </div>
             </div>
-            <div class="card graph-card" style="background: linear-gradient(145deg, rgba(30,41,59,0.9), rgba(15,23,42,0.8));">
-              <h3>Urgency Levels</h3>
-              <div style="position: relative; height: 300px; width: 100%;">
+            <div class="card" style="padding: 1.5rem;">
+              <h3 style="margin-bottom: 1.5rem;">Urgency Levels</h3>
+              <div style="height: 250px;">
                 <canvas id="urgencyChart"></canvas>
               </div>
             </div>
-            <div class="card graph-card" style="background: linear-gradient(145deg, rgba(30,41,59,0.9), rgba(15,23,42,0.8));">
-              <h3>Matches Over Time</h3>
-              <div style="position: relative; height: 300px; width: 100%;">
+            <div class="card" style="padding: 1.5rem;">
+              <h3 style="margin-bottom: 1.5rem;">Trends</h3>
+              <div style="height: 250px;">
                 <canvas id="matchesTimeChart"></canvas>
               </div>
             </div>
-            <div class="card graph-card" style="background: linear-gradient(145deg, rgba(30,41,59,0.9), rgba(15,23,42,0.8));">
-              <h3>Volunteer Skills</h3>
-              <div style="position: relative; height: 300px; width: 100%;">
+            <div class="card" style="padding: 1.5rem;">
+              <h3 style="margin-bottom: 1.5rem;">Volunteer Pool</h3>
+              <div style="height: 250px;">
                 <canvas id="skillsChart"></canvas>
               </div>
             </div>
           </div>
 
-          <div class="card matching-card" style="margin-top: 2rem; background: linear-gradient(145deg, rgba(30,41,59,0.9), rgba(15,23,42,0.8)); border-color: rgba(96, 165, 250, 0.3);">
-            <div class="matching-header">
+          <div class="card" style="margin-top: 2rem;">
+            <div class="matching-header" style="background: transparent;">
+              <h2>Manual Allocation</h2>
+              <p class="subtitle">Directly link an NGO request with a specific volunteer</p>
+            </div>
+            <div style="padding: 2rem; display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 1.5rem;">
+                <div class="form-group">
+                  <label>Select NGO Request</label>
+                  <select id="adminManualNgo" style="margin:0;"></select>
+                </div>
+                <div class="form-group">
+                  <label>Select Volunteer</label>
+                  <select id="adminManualVol" style="margin:0;"></select>
+                </div>
+                <div style="display: flex; align-items: flex-end;">
+                  <button id="adminManualMatchBtn" class="btn primary-btn" style="width: 100%; height: 42px;">Create Match</button>
+                </div>
+            </div>
+          </div>
+
+          <div class="card" style="margin-top: 2rem;">
+            <div class="matching-header" style="background: transparent;">
               <div>
-                <h2>Global Resource Matches</h2>
-                <p class="subtitle">System-wide overview of all matched requests</p>
+                <h2>Global Match Overview</h2>
+                <p class="subtitle">System-wide resource tracking</p>
               </div>
               <div class="matching-actions">
-                <button id="runMatchingBtn" class="btn primary-btn">Run AI Matcher</button>
-                <button id="refreshAdminBtn" class="btn secondary-btn">Refresh</button>
+                <button id="runMatchingBtn" class="btn primary-btn" style="font-size: 0.9rem;">Auto Match</button>
+                <button id="refreshAdminBtn" class="btn secondary-btn" style="font-size: 0.9rem;">Refresh</button>
               </div>
             </div>
             
-            <!-- Filters -->
-            <div style="padding: 1rem 2rem; border-bottom: 1px solid var(--border-color); display: flex; gap: 1rem; align-items: center; background: var(--bg-color);">
-              <input type="text" id="adminMatchSearch" placeholder="Search by name, location, or need..." style="max-width: 300px; padding: 0.5rem;" />
-              <select id="adminMatchSort" style="max-width: 200px; padding: 0.5rem;">
-                <option value="score_desc">Sort by Score (High to Low)</option>
-                <option value="score_asc">Sort by Score (Low to High)</option>
-                <option value="date_desc">Sort by Date (Newest)</option>
+            <div style="padding: 1rem 2rem; border-bottom: 1px solid var(--border); display: flex; gap: 1rem; align-items: center;">
+              <input type="text" id="adminMatchSearch" placeholder="Search global data..." style="flex:1; max-width: 400px; margin:0;" />
+              <select id="adminMatchSort" style="width: 200px; margin:0;">
+                <option value="score_desc">Rank by Score</option>
+                <option value="date_desc">Rank by Date</option>
               </select>
             </div>
 
             <div class="matches-container">
               <ul id="adminMatchesList" class="matches-list">
-                <li class="empty-state">Loading matches...</li>
+                <li class="empty-state">Loading...</li>
               </ul>
-              <button id="adminShowMoreBtn" class="btn secondary-btn hidden" style="margin: 1rem auto; display: block;">Show More Matches</button>
+              <button id="adminShowMoreBtn" class="btn secondary-btn hidden" style="margin: 1.5rem auto; display: block; width: auto;">Show More</button>
             </div>
           </div>
 
-          <div class="card matching-card" style="margin-top: 2rem; background: linear-gradient(145deg, rgba(30,41,59,0.9), rgba(15,23,42,0.8)); border-color: rgba(16, 185, 129, 0.3);">
-            <div class="matching-header">
-              <h2>Site Content Management</h2>
+          <div class="card" style="margin-top: 2rem;">
+            <div class="matching-header" style="background: transparent;">
+              <h2>Content CMS</h2>
             </div>
-            <div class="form-row" style="padding: 1rem 2rem;">
-              <div class="form-group" style="flex:1;">
-                <label style="text-align:left;">Dynamic Landing Page Stats</label>
-                <div style="display:flex; gap:10px; flex-wrap: wrap; justify-content: center;">
-                  <input type="text" id="editStatVolunteers" placeholder="Volunteers (e.g. 500+)" style="flex:1; min-width:150px;" />
-                  <input type="text" id="editStatImpacted" placeholder="Impacted (e.g. 10,000+)" style="flex:1; min-width:150px;" />
-                  <input type="text" id="editStatNGOs" placeholder="NGOs (e.g. 50+)" style="flex:1; min-width:150px;" />
-                  <button id="saveStatsBtn" class="btn primary-btn" style="margin-top:5px;">Save Stats</button>
+            
+            <div style="padding: 2rem; display: flex; flex-direction: column; gap: 2rem;">
+                <div>
+                  <label style="text-align: left; margin-top: 0;">Landing Stats</label>
+                  <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 1rem; margin-top: 0.5rem;">
+                    <input type="text" id="editStatVolunteers" placeholder="Volunteers" style="margin:0;" />
+                    <input type="text" id="editStatImpacted" placeholder="Impacted" style="margin:0;" />
+                    <input type="text" id="editStatNGOs" placeholder="NGOs" style="margin:0;" />
+                    <button id="saveStatsBtn" class="btn primary-btn" style="width: 100%;">Save</button>
+                  </div>
                 </div>
-              </div>
-            </div>
-            <div style="padding: 1rem 2rem;">
-              <label style="text-align:left;">Our Motive Text</label>
-              <textarea id="editMotiveText" rows="4" style="width:100%; max-width:100%; padding:10px; background:rgba(15,23,42,0.6); color:white; border-radius:8px;"></textarea>
-              <button id="saveMotiveBtn" class="btn primary-btn">Save Motive</button>
-            </div>
-            <div style="padding: 1rem 2rem;">
-              <label style="text-align:left;">Instructions Text</label>
-              <textarea id="editInstructionsText" rows="4" style="width:100%; max-width:100%; padding:10px; background:rgba(15,23,42,0.6); color:white; border-radius:8px;"></textarea>
-              <button id="saveInstructionsBtn" class="btn primary-btn">Save Instructions</button>
-            </div>
-            <div style="padding: 1rem 2rem;">
-              <label style="text-align:left;">Contact Details Text</label>
-              <textarea id="editContactText" rows="4" style="width:100%; max-width:100%; padding:10px; background:rgba(15,23,42,0.6); color:white; border-radius:8px;"></textarea>
-              <button id="saveContactBtn" class="btn primary-btn">Save Contact Details</button>
+
+                <div>
+                  <label style="text-align: left;">Our Motive</label>
+                  <textarea id="editMotiveText" rows="3" style="max-width: none; margin-top: 0.5rem;"></textarea>
+                  <button id="saveMotiveBtn" class="btn primary-btn" style="width: auto; margin-top: 1rem;">Update Motive</button>
+                </div>
+
+                <div>
+                  <label style="text-align: left;">Instructions</label>
+                  <textarea id="editInstructionsText" rows="3" style="max-width: none; margin-top: 0.5rem;"></textarea>
+                  <button id="saveInstructionsBtn" class="btn primary-btn" style="width: auto; margin-top: 1rem;">Update Instructions</button>
+                </div>
+
+                <div>
+                  <label style="text-align: left;">Contact Info</label>
+                  <textarea id="editContactText" rows="3" style="max-width: none; margin-top: 0.5rem;"></textarea>
+                  <button id="saveContactBtn" class="btn primary-btn" style="width: auto; margin-top: 1rem;">Update Contact</button>
+                </div>
             </div>
           </div>
-          
         </div>
       </section>
 
     </main>
   </div>
-  <footer style="text-align: center; padding: 2rem; background: #020617; border-top: 1px solid var(--border-color); color: var(--text-muted); margin-top: auto; position: relative;">
-    Developed by Saptarshi Sen | Contact: <a href="mailto:saptarshi.sensxcs@gmail.com" style="color: #60A5FA; text-decoration: none;">saptarshi.sensxcs@gmail.com</a>
+
+  <footer style="margin-top: 5rem;">
+    <p>CrisisConnect Platform &copy; 2026 | Developed by Saptarshi Sen</p>
   </footer>
+  
+  <script type="module" src="app.js"></script>
+</body>
+</html>
   <script type="module" src="app.js"></script>
 </body>
 </html>

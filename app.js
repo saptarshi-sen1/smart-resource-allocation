@@ -28,6 +28,8 @@ const ADMIN_EMAILS_LOWER = ADMIN_EMAILS.map(e => e.toLowerCase());
 let currentUser = null;
 let currentRole = null;
 let allAdminMatches = [];
+let adminMap = null;
+let heatLayer = null;
 const TOP_N = 3;
 let adminShowAll = false;
 let ngoAllMatches = [];
@@ -108,14 +110,21 @@ function showSection(id) {
 function setView(view) {
   const authSection = document.getElementById("auth-section");
   const appSection = document.getElementById("app-section");
+  const overlay = document.getElementById("loading-overlay");
+
   if (view === "auth") {
     authSection.classList.remove("hidden");
     authSection.classList.add("active");
     appSection.classList.add("hidden");
+    if (overlay) overlay.classList.add("hidden");
   } else {
-    authSection.classList.add("hidden");
-    authSection.classList.remove("active");
-    appSection.classList.remove("hidden");
+    if (overlay) overlay.classList.remove("hidden");
+    setTimeout(() => {
+        authSection.classList.add("hidden");
+        authSection.classList.remove("active");
+        appSection.classList.remove("hidden");
+        if (overlay) overlay.classList.add("hidden");
+    }, 800);
   }
 }
 
@@ -296,10 +305,20 @@ document.getElementById("registerForm").addEventListener("submit", async e => {
   const password = document.getElementById("regPassword").value;
   try {
     const cred = await createUserWithEmailAndPassword(auth, email, password);
+    const btn = e.target.querySelector("button[type=submit]");
+    btn.disabled = true;
+    btn.textContent = "Creating Account...";
     await saveUserRole(cred.user.uid, email, role);
     await handleAuthSuccess(cred.user, role);
   } catch (err) {
+    console.error("Registration error:", err);
     alert("Registration failed: " + err.message);
+  } finally {
+    const btn = e.target.querySelector("button[type=submit]");
+    if (btn) {
+        btn.disabled = false;
+        btn.textContent = "Create Account";
+    }
   }
 });
 
@@ -359,18 +378,26 @@ document.getElementById("showRegisterBtn").addEventListener("click", () => {
 
 // Restore session on page load
 (async () => {
+  const overlay = document.getElementById("loading-overlay");
+  if (overlay) overlay.classList.remove("hidden");
+  
   try {
     const result = await getRedirectResult(auth);
     if (result && result.user) {
       const pendingRole = sessionStorage.getItem("pendingRegistrationRole");
       if (pendingRole) {
+        console.log("Saving pending role:", pendingRole);
         await saveUserRole(result.user.uid, result.user.email, pendingRole);
         sessionStorage.removeItem("pendingRegistrationRole");
+        await handleAuthSuccess(result.user, pendingRole);
+        return; // handleAuthSuccess will take it from here
       }
     }
   } catch (err) {
     console.error("Redirect auth error:", err);
-    alert("Google sign-in failed: " + err.message);
+    if (err.code !== 'auth/popup-closed-by-user') {
+        alert("Google sign-in failed: " + err.message);
+    }
   }
 
   onAuthStateChanged(auth, async user => {
@@ -749,6 +776,113 @@ async function loadAdminMatches() {
   // Generate Dummy Analytics
   renderCharts();
   initDynamicAdminStats();
+  renderHeatmapData();
+  populateAdminManualSelects();
+}
+
+async function populateAdminManualSelects() {
+    const [reqSnap, volSnap] = await Promise.all([
+        getDocs(collection(db, "requests")),
+        getDocs(collection(db, "volunteers"))
+    ]);
+    const ngoSelect = document.getElementById("adminManualNgo");
+    const volSelect = document.getElementById("adminManualVol");
+    if (!ngoSelect || !volSelect) return;
+    
+    ngoSelect.innerHTML = '<option value="">Select NGO Request...</option>';
+    volSelect.innerHTML = '<option value="">Select Volunteer...</option>';
+    
+    reqSnap.forEach(d => {
+        const r = d.data();
+        ngoSelect.innerHTML += `<option value="${d.id}">${r.ngoName || 'NGO'} - ${r.needType} (${r.location})</option>`;
+    });
+    volSnap.forEach(d => {
+        const v = d.data();
+        volSelect.innerHTML += `<option value="${d.id}">${v.name || 'Volunteer'} (${v.location}) - ${v.skills.join(',')}</option>`;
+    });
+}
+
+document.getElementById("adminManualMatchBtn")?.addEventListener("click", async () => {
+    const rid = document.getElementById("adminManualNgo").value;
+    const vid = document.getElementById("adminManualVol").value;
+    if (!rid || !vid) { alert("Please select both an NGO and a Volunteer."); return; }
+    
+    try {
+        const [reqDoc, volDoc] = await Promise.all([
+            getDoc(doc(db, "requests", rid)),
+            getDoc(doc(db, "volunteers", vid))
+        ]);
+        const r = reqDoc.data();
+        const v = volDoc.data();
+        
+        await addDoc(collection(db, "confirmedMatches"), {
+            requestId: rid,
+            volunteerId: vid,
+            volunteerName: v.name || "N/A",
+            volunteerLocation: v.location || "N/A",
+            volunteerEmail: v.email || "N/A",
+            volunteerAvailability: v.availability || "N/A",
+            volunteerKey: v.uniqueKey || "N/A",
+            ngoUid: r.submittedBy || "",
+            ngoEmail: r.email || "N/A",
+            needType: r.needType || "N/A",
+            requestLocation: r.location || "N/A",
+            score: "Manual",
+            confirmedAt: new Date().toISOString()
+        });
+        alert("✅ Manual match created!");
+        loadAdminMatches();
+    } catch(e) { alert("Match failed: " + e.message); }
+});
+
+async function renderHeatmapData() {
+    if (!adminMap) initAdminHeatmap();
+    
+    try {
+        const snap = await getDocs(collection(db, "requests"));
+        const heatPoints = [];
+        snap.forEach(d => {
+            const data = d.data();
+            if (data.latitude && data.longitude) {
+                // Weight by people affected and urgency
+                let intensity = (data.peopleAffected || 1) / 100;
+                if (data.urgency === 'High') intensity *= 2;
+                heatPoints.push([data.latitude, data.longitude, intensity]);
+            }
+        });
+        
+        if (heatLayer) adminMap.removeLayer(heatLayer);
+        heatLayer = L.heatLayer(heatPoints, {
+            radius: 25,
+            blur: 15,
+            maxZoom: 10,
+            gradient: {0.4: 'blue', 0.65: 'lime', 1: 'red'}
+        }).addTo(adminMap);
+        
+        // Fit bounds if points exist
+        if (heatPoints.length > 0) {
+            const bounds = L.latLngBounds(heatPoints.map(p => [p[0], p[1]]));
+            adminMap.fitBounds(bounds, { padding: [20, 20] });
+        }
+    } catch(e) { console.error("Heatmap error:", e); }
+}
+
+function initAdminHeatmap() {
+    if (adminMap) return;
+    adminMap = L.map('adminHeatmap').setView([20.5937, 78.9629], 5); // India center default
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; OpenStreetMap contributors'
+    }).addTo(adminMap);
+    
+    // Fix leaflet resize issue in hidden tabs
+    const observer = new IntersectionObserver((entries) => {
+        entries.forEach(entry => {
+            if (entry.isIntersecting) {
+                adminMap.invalidateSize();
+            }
+        });
+    }, { threshold: 0.1 });
+    observer.observe(document.getElementById('adminHeatmap'));
 }
 
 function initDynamicAdminStats() {
