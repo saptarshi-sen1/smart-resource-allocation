@@ -8,15 +8,12 @@ The platform provides dedicated interfaces for three distinct user roles, ensuri
 
 ### Volunteer Dashboard
 Designed for individuals on the ground, this dashboard allows volunteers to manage their profiles, highlight their specific skill sets (Medical, Rescue, Logistics), and view active requests on interactive maps.
-![Volunteer Dashboard](https://drive.google.com/file/d/1YFAhfZYSc4HzC4z-2GM8hu8ecJwbqqHt/view?usp=sharing/800x450?text=Volunteer+Dashboard+Screenshot)
 
 ### NGO Dashboard
 The central hub for organizations to broadcast their needs. It features a unique OCR tool that allows field officers to scan paper survey forms and instantly convert them into digital resource requests.
-![NGO Dashboard](https://drive.google.com/file/d/1xSJw5JPLHUo1VvsJ5HgFBsoKcQKnviO1/view?usp=sharing/800x450?text=NGO+Dashboard+Screenshot)
 
 ### Admin Dashboard
 A high-level command center for system administrators to monitor platform-wide activity, analyze resource distribution via data charts, and manage global disaster response statistics.
-![Admin Dashboard](https://via.placeholder.com/800x450?text=Admin+Dashboard+Screenshot)
 
 ## Core Capabilities
 
