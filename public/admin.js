@@ -5,8 +5,9 @@
 const Chart = window.Chart;
 const L = window.L;
 
-let analyticsMap, volunteerMarkers = [], ngoMarkers = [];
+let analyticsMap, volunteerMarkers = [], ngoMarkers = [], heatLayer;
 let skillsChart, urgencyChart, volunteersPerMonthChart;
+let heatmapActive = false;
 
 function filterByTime(data, dateField, filter) {
 	const now = new Date();
@@ -50,6 +51,21 @@ function renderAnalytics() {
 		}
 	});
 
+	// Update Heatmap
+	const heatData = [...filteredVolunteers, ...filteredNgos]
+		.filter(item => item.latitude && item.longitude)
+		.map(item => [item.latitude, item.longitude, 0.5]);
+	
+	if (heatLayer) analyticsMap.removeLayer(heatLayer);
+	heatLayer = L.heatLayer(heatData, {radius: 25, blur: 15, maxZoom: 10}).addTo(analyticsMap);
+	
+	if (!heatmapActive) {
+		analyticsMap.removeLayer(heatLayer);
+	} else {
+		volunteerMarkers.forEach(m => analyticsMap.removeLayer(m));
+		ngoMarkers.forEach(m => analyticsMap.removeLayer(m));
+	}
+
 	// Skills Chart
 	const skillCounts = {};
 	volunteers.forEach(v => (v.skills || []).forEach(s => { skillCounts[s] = (skillCounts[s] || 0) + 1; }));
@@ -92,6 +108,15 @@ function renderAnalytics() {
 document.addEventListener('DOMContentLoaded', () => {
 	const filterEl = document.getElementById('mapTimeFilter');
 	if (filterEl) filterEl.addEventListener('change', renderAnalytics);
+
+	const heatmapBtn = document.getElementById('toggleHeatmapBtn');
+	if (heatmapBtn) {
+		heatmapBtn.addEventListener('click', () => {
+			heatmapActive = !heatmapActive;
+			heatmapBtn.innerText = heatmapActive ? 'Show Markers' : 'Show Heatmap';
+			renderAnalytics();
+		});
+	}
 });
 import { db } from "./firebase.js";
 import {
@@ -120,7 +145,7 @@ async function loadMatches() {
 	const q = query(collection(db, 'confirmedMatches'), orderBy('confirmedAt', sortDesc ? 'desc' : 'asc'));
 	const snap = await getDocs(q);
 	matches = [];
-	snap.forEach(doc => matches.push(doc.data()));
+	snap.forEach(doc => matches.push({ id: doc.id, ...doc.data() }));
 	renderMatches();
 	// Load all NGO requests
 	const ngoSnap = await getDocs(query(collection(db, 'requests'), orderBy('createdAt', 'desc')));
@@ -158,11 +183,30 @@ function renderMatches() {
 			       <strong>NGO Need:</strong> ${m.needType || 'N/A'}<br>
 			       <strong>Request Location:</strong> ${m.requestLocation || 'N/A'}<br>
 			       <strong>Score:</strong> ${m.score || 'N/A'}<br>
-			       <strong>Confirmed At:</strong> ${m.confirmedAt || 'N/A'}
+			       <strong>Confirmed At:</strong> ${m.confirmedAt || 'N/A'}<br>
+			       <button type="button" style="background:var(--danger); margin-top:10px;" onclick="window.deallocateMatch('${m.id}')">Deallocate Match</button>
 		       `;
 		       adminMatchesList.appendChild(li);
 	       });
 }
+
+window.deallocateMatch = async function(matchId) {
+	if (!confirm('Are you sure you want to deallocate this match?')) return;
+	try {
+		const q = query(collection(db, 'confirmedMatches'), where('__name__', '==', matchId));
+		const snap = await getDocs(q);
+		if (!snap.empty) {
+			await deleteDoc(snap.docs[0].ref);
+			alert('Match deallocated successfully.');
+			loadMatches();
+		}
+	} catch (err) {
+		console.error('Error deallocating match:', err);
+		alert('Failed to deallocate match.');
+	}
+};
+
+import { deleteDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 function renderNgos() {
        ngoList.innerHTML = '';

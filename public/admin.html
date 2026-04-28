@@ -2,18 +2,27 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <title>Admin Dashboard</title>
   <link rel="stylesheet" href="style.css" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+  <script src="https://unpkg.com/leaflet.heat/dist/leaflet-heat.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script type="module" src="firebase.js"></script>
+  <script type="module" src="admin.js"></script>
 </head>
 <body>
   <div class="box">
     <h1>Admin Dashboard</h1>
-    <button id="seedDataBtn" style="background: linear-gradient(135deg, var(--warning), #D97706); width: auto; padding: 10px 20px;">Seed Dummy Volunteers</button>
+    <div style="display:flex; gap:10px; margin-bottom:10px;">
+        <button id="seedDataBtn" style="background: linear-gradient(135deg, var(--warning), #D97706); width: auto; padding: 10px 20px;">Seed Dummy Volunteers</button>
+        <button id="toggleHeatmapBtn" style="background: var(--primary); width: auto; padding: 10px 20px;">Toggle Heatmap</button>
+    </div>
   </div>
   <div class="box">
-    <h2>Analytics</h2>
-    <div id="analyticsMap" style="height: 300px; margin-bottom: 20px;"></div>
+    <h2>Analytics & Resource Heatmap</h2>
+    <div id="analyticsMap" style="height: 450px; margin-bottom: 20px; border-radius: 12px; border: 1px solid var(--border-color);"></div>
     <label>Show data for:
       <select id="mapTimeFilter">
         <option value="all">All Time</option>
