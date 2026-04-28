@@ -658,6 +658,11 @@ document.getElementById("copyVolKeyBtn")?.addEventListener("click", () => {
 // ─── NGO: Volunteer Search + Key Exchange ────────────────────────────────────
 let selectedVolForMatch = null;
 
+function initNgoDashboard() {
+  const keyEl = document.getElementById("ngoKeyDisplay");
+  if (keyEl) keyEl.value = getOrCreateNgoKey();
+}
+
 function getOrCreateNgoKey() {
   if (!currentUser) return "";
   const storageKey = `ngoKey_${currentUser.uid}`;
@@ -823,154 +828,6 @@ document.getElementById("ngoMatchSort")?.addEventListener("change", applyNgoFilt
 document.getElementById("ngoShowMoreBtn").addEventListener("click", () => {
   ngoShowAll = !ngoShowAll;
   applyNgoFilters();
-});
-
-// Initialize NGO dashboard
-function initNgoDashboard() {
-  const keyEl = document.getElementById("ngoKeyDisplay");
-  if (keyEl) keyEl.value = getOrCreateNgoKey();
-}
-
-function getOrCreateNgoKey() {
-  if (!currentUser) return "";
-  const storageKey = `ngoKey_${currentUser.uid}`;
-  let key = localStorage.getItem(storageKey);
-  if (!key) {
-    key = Math.random().toString(36).substr(2, 8).toUpperCase();
-    localStorage.setItem(storageKey, key);
-  }
-  return key;
-}
-
-// ─── NGO: Volunteer Search + Key Exchange ────────────────────────────────────
-let selectedVolForMatch = null;
-
-async function searchVolunteers() {
-  const skillInput = (document.getElementById("volSkillSearch")?.value || "").trim().toLowerCase();
-  const list = document.getElementById("volunteerSearchList");
-  if (!list) return;
-  list.innerHTML = "<li class='empty-state'>Searching...</li>";
-
-  try {
-    const snap = await getDocs(collection(db, "volunteers"));
-    const results = [];
-    snap.forEach(d => {
-      const v = d.data();
-      const skills = (v.skills || []).map(s => s.toLowerCase());
-      if (!skillInput || skills.some(s => s.includes(skillInput))) {
-        results.push({ id: d.id, ...v });
-      }
-    });
-
-    if (results.length === 0) {
-      list.innerHTML = "<li class='empty-state'>No volunteers found for that skill.</li>";
-      return;
-    }
-
-    list.innerHTML = "";
-    results.forEach(v => {
-      let volStatus = v.availability || "N/A";
-      if (v.lastLogin) {
-        const days = (new Date() - new Date(v.lastLogin)) / (1000 * 60 * 60 * 24);
-        if (days > 30) volStatus = "Inactive (>30 days)";
-      }
-      const statusColor = volStatus.toLowerCase().includes('inactive') || volStatus.toLowerCase().includes('busy') ? 'var(--danger)' : 'var(--secondary)';
-
-      const li = document.createElement("li");
-      li.className = "match-item";
-      li.innerHTML = `
-        <div class="match-info">
-          <strong>${v.name || "N/A"}</strong><br>
-          <small>${(v.skills || []).join(", ")}</small>
-        </div>
-        <div class="match-info">
-          <small>📍 ${v.location || "N/A"}</small><br>
-          <small>Status: <span style="color: ${statusColor}; font-weight: bold;">${volStatus}</span></small>
-        </div>
-        <div class="match-score">
-          <button class="btn primary-btn" style="width:auto; padding:0.4rem 0.8rem;">Select</button>
-        </div>
-      `;
-      li.querySelector("button").addEventListener("click", () => selectVolunteerForMatch(v));
-      list.appendChild(li);
-    });
-  } catch (e) { console.error("Search failed:", e); }
-}
-
-function selectVolunteerForMatch(v) {
-  selectedVolForMatch = v;
-  const display = document.getElementById("selectedVolDisplay");
-  if (display) {
-    display.innerHTML = `<strong>${v.name}</strong> — Skills: ${(v.skills || []).join(", ")} | 📍 ${v.location || "N/A"}`;
-  }
-  const ngoKeyEl = document.getElementById("ngoKeyDisplay");
-  if (ngoKeyEl) ngoKeyEl.value = getOrCreateNgoKey();
-  
-  const exchangeBox = document.getElementById("keyExchangeBox");
-  if (exchangeBox) {
-    exchangeBox.classList.remove("hidden");
-    exchangeBox.scrollIntoView({ behavior: "smooth" });
-  }
-}
-
-document.getElementById("volSearchBtn")?.addEventListener("click", searchVolunteers);
-document.getElementById("volSkillSearch")?.addEventListener("keydown", e => { if (e.key === "Enter") searchVolunteers(); });
-
-document.getElementById("clearMatchSelBtn")?.addEventListener("click", () => {
-  selectedVolForMatch = null;
-  document.getElementById("keyExchangeBox")?.classList.add("hidden");
-  const keyInput = document.getElementById("enteredVolKey");
-  if (keyInput) keyInput.value = "";
-});
-
-document.getElementById("confirmMatchBtn")?.addEventListener("click", async () => {
-  if (!selectedVolForMatch) return;
-
-  const enteredKeyInput = document.getElementById("enteredVolKey");
-  const enteredKey = (enteredKeyInput?.value || "").trim().toUpperCase();
-  const ngoKey = getOrCreateNgoKey();
-  const needType = document.getElementById("needType").value.trim();
-  const ngoLocation = document.getElementById("requestLocation").value.trim();
-
-  if (!enteredKey) { alert("Please enter the volunteer's unique key."); return; }
-  if (enteredKey !== (selectedVolForMatch.uniqueKey || "").toUpperCase()) {
-    alert("❌ Incorrect volunteer key.");
-    return;
-  }
-  if (!needType || !ngoLocation) {
-    alert("Please fill in the Need Type and Location in the request form above.");
-    return;
-  }
-
-  try {
-    await addDoc(collection(db, "confirmedMatches"), {
-      volunteerId: selectedVolForMatch.id,
-      volunteerName: selectedVolForMatch.name || "N/A",
-      volunteerLocation: selectedVolForMatch.location || "N/A",
-      volunteerEmail: selectedVolForMatch.email || "N/A",
-      volunteerAvailability: selectedVolForMatch.availability || "N/A",
-      volunteerKey: selectedVolForMatch.uniqueKey,
-      ngoUid: currentUser.uid,
-      ngoEmail: currentUser.email || "N/A",
-      ngoKey,
-      needType,
-      requestLocation: ngoLocation,
-      score: "Manual",
-      confirmedAt: new Date().toISOString()
-    });
-    alert("✅ Match confirmed!");
-    
-    // Log Activity
-    logActivity(currentUser.uid, "Match Confirmed", `Matched with volunteer ${selectedVolForMatch.name} for ${needType}.`);
-    
-    selectedVolForMatch = null;
-    document.getElementById("keyExchangeBox")?.classList.add("hidden");
-    if (enteredKeyInput) enteredKeyInput.value = "";
-    loadNgoMatches();
-    loadHistory(currentUser.uid, "ngoTimeline");
-  } catch (err) {
-    alert("Error saving match: " + err.message);
-  }
 });
 
 // ─── Volunteer Matches ────────────────────────────────────────────────────────
