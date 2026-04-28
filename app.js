@@ -212,69 +212,86 @@ async function saveUserRole(uid, email, role) {
 }
 
 async function handleAuthSuccess(user, roleOverride) {
-  currentUser = user;
-  let role = roleOverride || await getUserRole(user.uid);
+  const overlay = document.getElementById("loading-overlay");
+  try {
+    currentUser = user;
+    let role = roleOverride || await getUserRole(user.uid);
 
-  const isAdmin = ADMIN_EMAILS_LOWER.includes((user.email || "").toLowerCase());
-  if (isAdmin) role = "Admin";
-  if (!role) role = "Volunteer";
-  currentRole = role;
+    const isAdmin = ADMIN_EMAILS_LOWER.includes((user.email || "").toLowerCase());
+    if (isAdmin) role = "Admin";
+    if (!role) role = "Volunteer";
+    currentRole = role;
 
-  await setDoc(doc(db, "users", user.uid), { lastLogin: new Date().toISOString() }, { merge: true });
-  
-  const badge = document.getElementById("userRoleBadge");
-  if (badge) badge.textContent = role;
-  
-  // Populate Navigation Links
-  const navLinks = document.getElementById("dashboard-nav");
-  if (navLinks) {
-    navLinks.innerHTML = "";
-    const links = {
-      "Volunteer": [
-        { name: "My Profile", target: "volunteer-dashboard" },
-        { name: "History", target: "volunteerTimeline" }
-      ],
-      "NGO": [
-        { name: "Requests", target: "ngo-dashboard" },
-        { name: "Scanned", target: "ngo-dashboard" }, // Add specific IDs if needed
-        { name: "History", target: "ngoTimeline" }
-      ],
-      "Admin": [
-        { name: "Overview", target: "admin-dashboard" },
-        { name: "Manual Match", target: "admin-dashboard" },
-        { name: "History", target: "adminTimeline" }
-      ]
-    };
+    // Update last login
+    try {
+      await setDoc(doc(db, "users", user.uid), { lastLogin: new Date().toISOString() }, { merge: true });
+    } catch (e) { console.warn("Could not update user login time", e); }
     
-    (links[role] || []).forEach(l => {
-      const a = document.createElement("a");
-      a.className = "nav-link";
-      a.textContent = l.name;
-      a.onclick = () => {
-        document.querySelectorAll(".nav-link").forEach(nl => nl.classList.remove("active"));
-        a.classList.add("active");
-        // Scroll to target or show section
-        const targetEl = document.getElementById(l.target);
-        if (targetEl) targetEl.scrollIntoView({ behavior: 'smooth' });
+    const badge = document.getElementById("userRoleBadge");
+    if (badge) badge.textContent = role;
+    
+    // Populate Navigation Links
+    const navLinks = document.getElementById("dashboard-nav");
+    if (navLinks) {
+      navLinks.innerHTML = "";
+      const links = {
+        "Volunteer": [
+          { name: "My Profile", target: "volunteer-dashboard" },
+          { name: "History", target: "volunteerTimeline" }
+        ],
+        "NGO": [
+          { name: "Requests", target: "ngo-dashboard" },
+          { name: "Scanned", target: "ocr-scan-section" },
+          { name: "History", target: "ngoTimeline" }
+        ],
+        "Admin": [
+          { name: "Overview", target: "admin-dashboard" },
+          { name: "Matches", target: "admin-matches-section" },
+          { name: "History", target: "adminTimeline" }
+        ]
       };
-      navLinks.appendChild(a);
-    });
-  }
+      
+      (links[role] || []).forEach(l => {
+        const a = document.createElement("a");
+        a.className = "nav-link";
+        a.textContent = l.name;
+        a.onclick = () => {
+          document.querySelectorAll(".nav-link").forEach(nl => nl.classList.remove("active"));
+          a.classList.add("active");
+          const targetEl = document.getElementById(l.target);
+          if (targetEl) targetEl.scrollIntoView({ behavior: 'smooth' });
+          
+          // Toggle timeline visibility if clicked
+          if (l.target.toLowerCase().includes('timeline')) {
+            document.querySelectorAll('.timeline').forEach(t => t.classList.add('hidden'));
+            if (targetEl) targetEl.classList.remove('hidden');
+          }
+        };
+        navLinks.appendChild(a);
+      });
+    }
 
-  setView("app");
+    setView("app");
 
-  if (role === "Admin") {
-    showSection("admin-dashboard");
-    loadAdminMatches();
-    renderCharts();
-  } else if (role === "NGO") {
-    showSection("ngo-dashboard");
-    loadNgoMatches();
-    initNgoDashboard();
-  } else {
-    showSection("volunteer-dashboard");
-    loadVolMatches();
-    prefillVolunteerForm();
+    if (role === "Admin") {
+      showSection("admin-dashboard");
+      loadAdminMatches();
+      renderCharts();
+    } else if (role === "NGO") {
+      showSection("ngo-dashboard");
+      loadNgoMatches();
+      initNgoDashboard();
+    } else {
+      showSection("volunteer-dashboard");
+      loadVolMatches();
+      prefillVolunteerForm();
+    }
+  } catch (err) {
+    console.error("Auth success handler failed:", err);
+    alert("Authentication error. Please try logging in again.");
+    setView("auth");
+  } finally {
+    if (overlay) overlay.classList.add("hidden");
   }
 }
 
