@@ -118,14 +118,12 @@ function setView(view) {
     appSection.classList.add("hidden");
     if (overlay) overlay.classList.add("hidden");
   } else {
-    if (overlay) overlay.classList.remove("hidden");
-    setTimeout(() => {
-        authSection.classList.add("hidden");
-        authSection.classList.remove("active");
-        appSection.classList.remove("hidden");
-        if (overlay) overlay.classList.add("hidden");
-    }, 800);
+    authSection.classList.add("hidden");
+    authSection.classList.remove("active");
+    appSection.classList.remove("hidden");
+    if (overlay) overlay.classList.add("hidden");
   }
+
 }
 
 function setGeoOnClick(latId, lngId) {
