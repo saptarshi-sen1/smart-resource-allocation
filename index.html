@@ -90,18 +90,19 @@
   </style>
 </head>
 <body class="dark-theme">
-  <div class="top-controls" style="position:fixed; width:100%; top:0; z-index:200; background:var(--card-bg); border-bottom:1px solid var(--border-color); height: 40px; display: flex; align-items: center;">
+  <div class="top-controls">
     <div id="google_translate_element"></div>
-    <div style="display:flex; align-items:center; gap: 10px; margin-left: auto; padding-right: 20px;">
-      <span style="font-size: 0.8rem; color: var(--text-main);">Theme</span>
-      <label class="theme-switch" style="position: relative; display: flex; align-items: center;">
-        <span style="position: absolute; left: -22px; font-size: 1rem;">🌞</span>
-        <input type="checkbox" id="themeToggle" checked onchange="document.body.classList.toggle('dark-theme', this.checked)">
+    <div class="theme-controls">
+      <span class="theme-icon">🌞</span>
+      <label class="theme-switch">
+        <input type="checkbox" id="themeToggle" onchange="handleThemeToggle(this.checked)">
         <span class="slider"></span>
-        <span style="position: absolute; right: -22px; font-size: 1rem;">🌙</span>
       </label>
+      <span class="theme-icon">🌙</span>
     </div>
   </div>
+
+  <script src="theme.js"></script>
   <script type="text/javascript">
     function googleTranslateElementInit() {
       new google.translate.TranslateElement({pageLanguage: 'en', includedLanguages: 'en,hi,bn', layout: google.translate.TranslateElement.InlineLayout.SIMPLE}, 'google_translate_element');
@@ -109,15 +110,15 @@
   </script>
   <script type="text/javascript" src="//translate.google.com/translate_a/element.js?cb=googleTranslateElementInit"></script>
 
-  <header class="landing-header" style="margin-top: 40px;">
-    <h1 class="logo" style="margin:0; font-size: 1.8rem;">CrisisConnect</h1>
+  <header class="landing-header">
+    <a href="index.html" class="logo">CrisisConnect</a>
     <button class="menu-toggle" id="menuToggle">☰</button>
     <nav class="landing-nav" id="landingNav">
       <a href="index.html">Home</a>
       <a href="motive.html">Our Motive</a>
       <a href="instructions.html">Instructions</a>
       <a href="contact.html">Contact Us</a>
-      <a href="dashboard.html" class="btn primary-btn" style="margin: 0 0 0 1rem; padding: 0.6rem 1.2rem; display: inline-block; width: auto;">Login to Platform</a>
+      <a href="dashboard.html" class="btn primary-btn" style="width: auto; margin-left: 1rem;">Login</a>
     </nav>
   </header>
 
@@ -125,9 +126,9 @@
     <h1>Bridging the Gap in <br>Disaster Response</h1>
     <p>A smart, AI-driven resource allocation platform connecting NGOs with the right volunteers instantly. When every second counts, we ensure help reaches where it's needed most.</p>
     
-    <div style="display:flex; gap: 1rem; flex-wrap: wrap; justify-content: center;">
-      <a href="dashboard.html" class="btn primary-btn" style="font-size: 1.1rem; padding: 1rem 2rem; width: auto;">Get Involved Now</a>
-      <a href="motive.html" class="btn secondary-btn" style="font-size: 1.1rem; padding: 1rem 2rem; width: auto;">Learn More</a>
+    <div class="hero-btns">
+      <a href="dashboard.html" class="btn primary-btn" style="padding: 1rem 2.5rem; font-size: 1.1rem;">Get Involved Now</a>
+      <a href="motive.html" class="btn secondary-btn" style="padding: 1rem 2.5rem; font-size: 1.1rem;">Learn More</a>
     </div>
 
     <div class="hero-stats" id="dynamicStats">
@@ -147,7 +148,7 @@
   </main>
 
   <footer>
-    Developed by Saptarshi Sen | Contact: <a href="mailto:saptarshi.sensxcs@gmail.com">saptarshi.sensxcs@gmail.com</a>
+    <p>Developed by Saptarshi Sen | <a href="mailto:saptarshi.sensxcs@gmail.com">Contact Support</a></p>
   </footer>
 
   <script type="module">
@@ -158,22 +159,22 @@
     const menuToggle = document.getElementById('menuToggle');
     const landingNav = document.getElementById('landingNav');
     if (menuToggle) {
-        menuToggle.onclick = () => landingNav.classList.toggle('active');
+        menuToggle.onclick = (e) => {
+            e.stopPropagation();
+            landingNav.classList.toggle('active');
+        };
+        // Close menu on click outside
+        document.addEventListener('click', () => landingNav.classList.remove('active'));
+        landingNav.onclick = (e) => e.stopPropagation();
     }
 
     async function loadStats() {
       try {
         const snap = await getDoc(doc(db, "siteContent", "stats"));
-        if (snap.exists()) {
-          const data = snap.data();
-          document.getElementById("statUsers").innerText = data.volunteers || "500+";
-          document.getElementById("statImpact").innerText = data.impacted || "10,000+";
-          document.getElementById("statNGOs").innerText = data.ngos || "50+";
-        } else {
-          document.getElementById("statUsers").innerText = "500+";
-          document.getElementById("statImpact").innerText = "10,000+";
-          document.getElementById("statNGOs").innerText = "50+";
-        }
+        const stats = snap.exists() ? snap.data() : { volunteers: "500+", impacted: "10,000+", ngos: "50+" };
+        document.getElementById("statUsers").innerText = stats.volunteers;
+        document.getElementById("statImpact").innerText = stats.impacted;
+        document.getElementById("statNGOs").innerText = stats.ngos;
       } catch(err) {
         console.error("Failed to load stats", err);
       }

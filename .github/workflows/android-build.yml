@@ -10,6 +10,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       HAS_KEYSTORE: ${{ secrets.KEYSTORE_BASE64 != '' }}
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
     
     defaults:
       run:
@@ -23,7 +24,8 @@ jobs:
       with:
         java-version: '17'
         distribution: 'temurin'
-        cache: gradle
+        # Disabling cache to fix 400 error
+        # cache: gradle
 
     - name: Grant execute permission for gradlew
       run: chmod +x gradlew

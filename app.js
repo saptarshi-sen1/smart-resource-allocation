@@ -15,6 +15,7 @@ import {
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
   signInWithRedirect,
+  signInWithPopup,
   getRedirectResult,
   signOut,
   onAuthStateChanged
@@ -28,8 +29,11 @@ const ADMIN_EMAILS_LOWER = ADMIN_EMAILS.map(e => e.toLowerCase());
 let currentUser = null;
 let currentRole = null;
 let allAdminMatches = [];
+let adminMap = null;
+let heatLayer = null;
 const TOP_N = 3;
 let adminShowAll = false;
+let isInitializingAuth = true;
 let ngoAllMatches = [];
 let ngoShowAll = false;
 let volAllMatches = [];
@@ -108,15 +112,20 @@ function showSection(id) {
 function setView(view) {
   const authSection = document.getElementById("auth-section");
   const appSection = document.getElementById("app-section");
+  const overlay = document.getElementById("loading-overlay");
+
   if (view === "auth") {
     authSection.classList.remove("hidden");
     authSection.classList.add("active");
     appSection.classList.add("hidden");
+    if (overlay) overlay.classList.add("hidden");
   } else {
     authSection.classList.add("hidden");
     authSection.classList.remove("active");
     appSection.classList.remove("hidden");
+    if (overlay) overlay.classList.add("hidden");
   }
+
 }
 
 function setGeoOnClick(latId, lngId) {
@@ -193,6 +202,50 @@ function renderMatchList(listId, showMoreBtnId, items, showAll) {
 }
 
 // ─── Auth Flow ──────────────────────────────────────────────────────────────
+async function logActivity(uid, action, details) {
+  try {
+    await addDoc(collection(db, "history"), {
+      uid,
+      action,
+      details,
+      timestamp: new Date().toISOString(),
+      role: currentRole
+    });
+  } catch (e) { console.error("Failed to log activity:", e); }
+}
+
+async function loadHistory(uid, timelineId) {
+  const container = document.querySelector(`#${timelineId} .timeline-container`);
+  if (!container) return;
+  
+  try {
+    const q = query(
+      collection(db, "history"),
+      where("uid", "==", uid),
+      orderBy("timestamp", "desc")
+    );
+    const snap = await getDocs(q);
+    
+    if (snap.empty) {
+      container.innerHTML = '<div class="timeline-item"><p>No activity recorded yet.</p></div>';
+      return;
+    }
+    
+    container.innerHTML = "";
+    snap.forEach(doc => {
+      const data = doc.data();
+      const div = document.createElement("div");
+      div.className = "timeline-item";
+      div.innerHTML = `
+        <h3>${data.action}</h3>
+        <p>${data.details}</p>
+        <small>${new Date(data.timestamp).toLocaleString()}</small>
+      `;
+      container.appendChild(div);
+    });
+  } catch (e) { console.error("Failed to load history:", e); }
+}
+
 async function getUserRole(uid) {
   const snap = await getDoc(doc(db, "users", uid));
   return snap.exists() ? snap.data().role : null;
@@ -203,37 +256,93 @@ async function saveUserRole(uid, email, role) {
 }
 
 async function handleAuthSuccess(user, roleOverride) {
-  currentUser = user;
-  let role = roleOverride || await getUserRole(user.uid);
+  const overlay = document.getElementById("loading-overlay");
+  try {
+    currentUser = user;
+    let role = roleOverride || await getUserRole(user.uid);
 
-  // Check if admin
-  const isAdmin = ADMIN_EMAILS_LOWER.includes((user.email || "").toLowerCase());
-  if (isAdmin) role = "Admin";
+    const isAdmin = ADMIN_EMAILS_LOWER.includes((user.email || "").toLowerCase());
+    if (isAdmin) role = "Admin";
+    if (!role) role = "Volunteer";
+    currentRole = role;
 
-  if (!role) role = "Volunteer"; // Fallback
-  currentRole = role;
+    // Update last login
+    try {
+      await setDoc(doc(db, "users", user.uid), { lastLogin: new Date().toISOString() }, { merge: true });
+    } catch (e) { console.warn("Could not update user login time", e); }
+    
+    const badge = document.getElementById("userRoleBadge");
+    if (badge) badge.textContent = role;
+    
+    // Populate Navigation Links
+    const navLinks = document.getElementById("dashboard-nav");
+    if (navLinks) {
+      navLinks.innerHTML = "";
+      const links = {
+        "Volunteer": [
+          { name: "My Profile", target: "volunteer-dashboard" },
+          { name: "History", target: "volunteerTimeline" }
+        ],
+        "NGO": [
+          { name: "Requests", target: "ngo-dashboard" },
+          { name: "Scanned", target: "ocr-scan-section" },
+          { name: "History", target: "ngoTimeline" }
+        ],
+        "Admin": [
+          { name: "Overview", target: "admin-dashboard" },
+          { name: "Matches", target: "admin-matches-section" },
+          { name: "History", target: "adminTimeline" }
+        ]
+      };
+      
+      (links[role] || []).forEach(l => {
+        const a = document.createElement("a");
+        a.className = "nav-link";
+        a.textContent = l.name;
+        a.onclick = () => {
+          document.querySelectorAll(".nav-link").forEach(nl => nl.classList.remove("active"));
+          a.classList.add("active");
+          const targetEl = document.getElementById(l.target);
+          if (targetEl) targetEl.scrollIntoView({ behavior: 'smooth' });
+          
+          // Toggle timeline visibility if clicked
+          if (l.target.toLowerCase().includes('timeline')) {
+            document.querySelectorAll('.timeline').forEach(t => t.classList.add('hidden'));
+            if (targetEl) targetEl.classList.remove('hidden');
+          }
+        };
+        navLinks.appendChild(a);
+      });
+    }
 
-  // Update last login
-  await setDoc(doc(db, "users", user.uid), { lastLogin: new Date().toISOString() }, { merge: true });
-  if (role === "Volunteer") {
-      await setDoc(doc(db, "volunteers", user.uid), { lastLogin: new Date().toISOString() }, { merge: true });
-  }
+    setView("app");
 
-  document.getElementById("userRoleBadge").textContent = role;
-  setView("app");
+    if (role === "Admin") {
+      showSection("admin-dashboard");
+      loadAdminMatches();
+      renderCharts();
+      loadHistory(user.uid, "adminTimeline");
+    } else if (role === "NGO") {
+      showSection("ngo-dashboard");
+      loadNgoMatches();
+      initNgoDashboard();
+      loadHistory(user.uid, "ngoTimeline");
+    } else {
+      showSection("volunteer-dashboard");
+      loadVolMatches();
+      prefillVolunteerForm();
+      loadHistory(user.uid, "volunteerTimeline");
+    }
+    
+    // Log login
+    logActivity(user.uid, "Login", "Successfully signed into the dashboard.");
 
-  if (role === "Admin") {
-    showSection("admin-dashboard");
-    loadAdminMatches();
-    renderCharts();
-  } else if (role === "NGO") {
-    showSection("ngo-dashboard");
-    loadNgoMatches();
-    initNgoDashboard();
-  } else {
-    showSection("volunteer-dashboard");
-    loadVolMatches();
-    prefillVolunteerForm();
+  } catch (err) {
+    console.error("Auth success handler failed:", err);
+    alert("Authentication error. Please try logging in again.");
+    setView("auth");
+  } finally {
+    if (overlay) overlay.classList.add("hidden");
   }
 }
 
@@ -291,15 +400,25 @@ document.getElementById("loginForm").addEventListener("submit", async e => {
 // Email/Password Register
 document.getElementById("registerForm").addEventListener("submit", async e => {
   e.preventDefault();
-  const role = document.getElementById("regRole").value;
+  const role = document.querySelector('input[name="regRole"]:checked')?.value || "Volunteer";
   const email = document.getElementById("regEmail").value.trim();
   const password = document.getElementById("regPassword").value;
   try {
     const cred = await createUserWithEmailAndPassword(auth, email, password);
+    const btn = e.target.querySelector("button[type=submit]");
+    btn.disabled = true;
+    btn.textContent = "Creating Account...";
     await saveUserRole(cred.user.uid, email, role);
     await handleAuthSuccess(cred.user, role);
   } catch (err) {
+    console.error("Registration error:", err);
     alert("Registration failed: " + err.message);
+  } finally {
+    const btn = e.target.querySelector("button[type=submit]");
+    if (btn) {
+        btn.disabled = false;
+        btn.textContent = "Create Account";
+    }
   }
 });
 
@@ -324,22 +443,60 @@ function handleGoogleError(err) {
   }
 }
 
-document.getElementById("googleLoginBtn").addEventListener("click", () => {
-  signInWithRedirect(auth, googleProvider);
-});
+function isMobileWebView() {
+  const ua = navigator.userAgent || navigator.vendor || window.opera;
+  const isAndroid = /android/i.test(ua);
+  const isIos = /iPad|iPhone|iPod/.test(ua) && !window.MSStream;
+  // Common check for WebView: Android's Version/X.X or iOS's specific triggers
+  return (isAndroid && /Version\//.test(ua)) || (isIos && !/Safari/.test(ua));
+}
+
+async function startGoogleAuth(role = null) {
+  if (role) sessionStorage.setItem("pendingRegistrationRole", role);
+  
+  if (isMobileWebView()) {
+    // WebViews MUST use redirect
+    await signInWithRedirect(auth, googleProvider);
+  } else {
+    // Desktop/Browser uses smooth popup
+    try {
+      const result = await signInWithPopup(auth, googleProvider);
+      // If we just registered, save the role
+      const pendingRole = sessionStorage.getItem("pendingRegistrationRole");
+      if (pendingRole && result.user) {
+        await saveUserRole(result.user.uid, result.user.email, pendingRole);
+        sessionStorage.removeItem("pendingRegistrationRole");
+      }
+    } catch (err) {
+      handleGoogleError(err);
+    }
+  }
+}
+
+document.getElementById("googleLoginBtn").addEventListener("click", () => startGoogleAuth());
 
 // Google Register
 document.getElementById("googleRegBtn").addEventListener("click", () => {
-  const role = document.getElementById("regRole").value;
-  sessionStorage.setItem("pendingRegistrationRole", role);
-  signInWithRedirect(auth, googleProvider);
+  const role = document.querySelector('input[name="regRole"]:checked')?.value || "Volunteer";
+  startGoogleAuth(role);
 });
 
 // Logout
 document.getElementById("logoutBtn").addEventListener("click", async () => {
+  // Sign out from Firebase
   await signOut(auth);
+  // Clear any persisted auth data
+  try { localStorage.clear(); } catch(e) {}
+  try { sessionStorage.clear(); } catch(e) {}
   currentUser = null;
   currentRole = null;
+  // Reset auth UI to login view
+  const loginForm = document.getElementById("loginForm");
+  const registerForm = document.getElementById("registerForm");
+  loginForm.classList.add("active");
+  registerForm.classList.remove("active");
+  document.getElementById("showLoginBtn").classList.add("active");
+  document.getElementById("showRegisterBtn").classList.remove("active");
   setView("auth");
 });
 
@@ -357,9 +514,13 @@ document.getElementById("showRegisterBtn").addEventListener("click", () => {
   document.getElementById("showLoginBtn").classList.remove("active");
 });
 
-// Restore session on page load
+// ─── Auth Initialization ───────────────────────────────────────────────────
 (async () => {
+  const overlay = document.getElementById("loading-overlay");
+  if (overlay) overlay.classList.remove("hidden");
+  
   try {
+    // Process redirect result first
     const result = await getRedirectResult(auth);
     if (result && result.user) {
       const pendingRole = sessionStorage.getItem("pendingRegistrationRole");
@@ -370,15 +531,20 @@ document.getElementById("showRegisterBtn").addEventListener("click", () => {
     }
   } catch (err) {
     console.error("Redirect auth error:", err);
-    alert("Google sign-in failed: " + err.message);
+    if (err.code !== 'auth/popup-closed-by-user') {
+      alert("Google sign-in failed: " + err.message);
+    }
   }
 
+  // Now register the state listener
   onAuthStateChanged(auth, async user => {
+    isInitializingAuth = false;
     if (user) {
       await handleAuthSuccess(user);
     } else {
       setView("auth");
     }
+    if (overlay) overlay.classList.add("hidden");
   });
 })();
 
@@ -521,6 +687,11 @@ document.getElementById("copyVolKeyBtn")?.addEventListener("click", () => {
 
 // ─── NGO: Volunteer Search + Key Exchange ────────────────────────────────────
 let selectedVolForMatch = null;
+
+function initNgoDashboard() {
+  const keyEl = document.getElementById("ngoKeyDisplay");
+  if (keyEl) keyEl.value = getOrCreateNgoKey();
+}
 
 function getOrCreateNgoKey() {
   if (!currentUser) return "";
@@ -689,12 +860,6 @@ document.getElementById("ngoShowMoreBtn").addEventListener("click", () => {
   applyNgoFilters();
 });
 
-// Initialize NGO key display when NGO dashboard loads
-function initNgoDashboard() {
-  const keyEl = document.getElementById("ngoKeyDisplay");
-  if (keyEl) keyEl.value = getOrCreateNgoKey();
-}
-
 // ─── Volunteer Matches ────────────────────────────────────────────────────────
 async function loadVolMatches() {
   if (!currentUser) return;
@@ -749,6 +914,113 @@ async function loadAdminMatches() {
   // Generate Dummy Analytics
   renderCharts();
   initDynamicAdminStats();
+  renderHeatmapData();
+  populateAdminManualSelects();
+}
+
+async function populateAdminManualSelects() {
+    const [reqSnap, volSnap] = await Promise.all([
+        getDocs(collection(db, "requests")),
+        getDocs(collection(db, "volunteers"))
+    ]);
+    const ngoSelect = document.getElementById("adminManualNgo");
+    const volSelect = document.getElementById("adminManualVol");
+    if (!ngoSelect || !volSelect) return;
+    
+    ngoSelect.innerHTML = '<option value="">Select NGO Request...</option>';
+    volSelect.innerHTML = '<option value="">Select Volunteer...</option>';
+    
+    reqSnap.forEach(d => {
+        const r = d.data();
+        ngoSelect.innerHTML += `<option value="${d.id}">${r.ngoName || 'NGO'} - ${r.needType} (${r.location})</option>`;
+    });
+    volSnap.forEach(d => {
+        const v = d.data();
+        volSelect.innerHTML += `<option value="${d.id}">${v.name || 'Volunteer'} (${v.location}) - ${v.skills.join(',')}</option>`;
+    });
+}
+
+document.getElementById("adminManualMatchBtn")?.addEventListener("click", async () => {
+    const rid = document.getElementById("adminManualNgo").value;
+    const vid = document.getElementById("adminManualVol").value;
+    if (!rid || !vid) { alert("Please select both an NGO and a Volunteer."); return; }
+    
+    try {
+        const [reqDoc, volDoc] = await Promise.all([
+            getDoc(doc(db, "requests", rid)),
+            getDoc(doc(db, "volunteers", vid))
+        ]);
+        const r = reqDoc.data();
+        const v = volDoc.data();
+        
+        await addDoc(collection(db, "confirmedMatches"), {
+            requestId: rid,
+            volunteerId: vid,
+            volunteerName: v.name || "N/A",
+            volunteerLocation: v.location || "N/A",
+            volunteerEmail: v.email || "N/A",
+            volunteerAvailability: v.availability || "N/A",
+            volunteerKey: v.uniqueKey || "N/A",
+            ngoUid: r.submittedBy || "",
+            ngoEmail: r.email || "N/A",
+            needType: r.needType || "N/A",
+            requestLocation: r.location || "N/A",
+            score: "Manual",
+            confirmedAt: new Date().toISOString()
+        });
+        alert("✅ Manual match created!");
+        loadAdminMatches();
+    } catch(e) { alert("Match failed: " + e.message); }
+});
+
+async function renderHeatmapData() {
+    if (!adminMap) initAdminHeatmap();
+    
+    try {
+        const snap = await getDocs(collection(db, "requests"));
+        const heatPoints = [];
+        snap.forEach(d => {
+            const data = d.data();
+            if (data.latitude && data.longitude) {
+                // Weight by people affected and urgency
+                let intensity = (data.peopleAffected || 1) / 100;
+                if (data.urgency === 'High') intensity *= 2;
+                heatPoints.push([data.latitude, data.longitude, intensity]);
+            }
+        });
+        
+        if (heatLayer) adminMap.removeLayer(heatLayer);
+        heatLayer = L.heatLayer(heatPoints, {
+            radius: 25,
+            blur: 15,
+            maxZoom: 10,
+            gradient: {0.4: 'blue', 0.65: 'lime', 1: 'red'}
+        }).addTo(adminMap);
+        
+        // Fit bounds if points exist
+        if (heatPoints.length > 0) {
+            const bounds = L.latLngBounds(heatPoints.map(p => [p[0], p[1]]));
+            adminMap.fitBounds(bounds, { padding: [20, 20] });
+        }
+    } catch(e) { console.error("Heatmap error:", e); }
+}
+
+function initAdminHeatmap() {
+    if (adminMap) return;
+    adminMap = L.map('adminHeatmap').setView([20.5937, 78.9629], 5); // India center default
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; OpenStreetMap contributors'
+    }).addTo(adminMap);
+    
+    // Fix leaflet resize issue in hidden tabs
+    const observer = new IntersectionObserver((entries) => {
+        entries.forEach(entry => {
+            if (entry.isIntersecting) {
+                adminMap.invalidateSize();
+            }
+        });
+    }, { threshold: 0.1 });
+    observer.observe(document.getElementById('adminHeatmap'));
 }
 
 function initDynamicAdminStats() {
@@ -1094,5 +1366,13 @@ if (processOcrBtnEl) {
       processOcrBtnEl.disabled = false;
       ocrStatusEl.classList.add("hidden");
     }
+  });
+}
+
+const jumpToOcrBtn = document.getElementById("jumpToOcrBtn");
+if (jumpToOcrBtn) {
+  jumpToOcrBtn.addEventListener("click", () => {
+    const el = document.getElementById("ocr-scan-section");
+    if (el) el.scrollIntoView({ behavior: "smooth" });
   });
 }

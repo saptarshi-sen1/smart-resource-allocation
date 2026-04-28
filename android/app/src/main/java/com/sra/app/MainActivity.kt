@@ -25,7 +25,8 @@ class MainActivity : AppCompatActivity() {
     private lateinit var binding: ActivityMainBinding
     
     // REPLACE THIS WITH YOUR FIREBASE HOSTING URL
-    private val webAppUrl = "https://smart-resource-allocatio-ff7e5.web.app/" 
+    // CORRECT FIREBASE HOSTING URL
+    private val webAppUrl = "https://smart-resource-allocatio-ff7e5.web.app" 
     
     private var filePathCallback: ValueCallback<Array<Uri>>? = null
 
@@ -36,9 +37,7 @@ class MainActivity : AppCompatActivity() {
 
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
-        // Set proper theme before onCreate
-        setupThemeMode()
-        setTheme(R.style.Theme_WebApp)
+        setTheme(R.style.Theme_WebApp) // Remove splash screen theme
         super.onCreate(savedInstanceState)
         
         binding = ActivityMainBinding.inflate(layoutInflater)
@@ -51,13 +50,6 @@ class MainActivity : AppCompatActivity() {
         loadWebApp()
     }
 
-    private fun setupThemeMode() {
-        val nightModeFlags = resources.configuration.uiMode and android.content.res.Configuration.UI_MODE_NIGHT_MASK
-        if (nightModeFlags == android.content.res.Configuration.UI_MODE_NIGHT_YES) {
-            // Optional: Set some flags for dark mode if needed
-        }
-    }
-
     @SuppressLint("SetJavaScriptEnabled")
     private fun setupWebView() {
         binding.webView.apply {
@@ -66,43 +58,27 @@ class MainActivity : AppCompatActivity() {
                 domStorageEnabled = true
                 databaseEnabled = true
                 cacheMode = WebSettings.LOAD_DEFAULT
-                setSupportZoom(true)
-                builtInZoomControls = true
-                displayZoomControls = false
-                useWideViewPort = true
-                loadWithOverviewMode = true
+                setSupportZoom(false)
                 allowFileAccess = true
                 mediaPlaybackRequiresUserGesture = false
-                
-                // CRITICAL: Custom UserAgent to allow Google Login in WebView
-                // We remove "wv" from the string which Google uses to detect and block WebViews
+                // FIX: Remove 'Version/X.X' to bypass 'disallowed_useragent' block by Google
                 val defaultUA = userAgentString
-                userAgentString = defaultUA.replace("; wv", "")
-                    .replace("Version/\\d+\\.\\d+\\s".toRegex(), "")
+                userAgentString = defaultUA.replace("; wv", "").replace("""Version/d+.d+s+""".toRegex(), "")
                 
-                // Enable Dark Mode support for WebView content
-                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
-                    val nightModeFlags = resources.configuration.uiMode and android.content.res.Configuration.UI_MODE_NIGHT_MASK
-                    if (nightModeFlags == android.content.res.Configuration.UI_MODE_NIGHT_YES) {
-                        forceDark = WebSettings.FORCE_DARK_ON
-                    } else {
-                        forceDark = WebSettings.FORCE_DARK_OFF
-                    }
-                }
+                // Enable multi-window for popups if needed, but we'll stick to redirect for app
+                setSupportMultipleWindows(true)
             }
 
             webViewClient = object : WebViewClient() {
                 override fun onPageStarted(view: WebView?, url: String?, favicon: Bitmap?) {
                     super.onPageStarted(view, url, favicon)
                     binding.progressBar.visibility = View.VISIBLE
-                    binding.loadingText.visibility = View.VISIBLE
                     binding.offlineLayout.visibility = View.GONE
                 }
 
                 override fun onPageFinished(view: WebView?, url: String?) {
                     super.onPageFinished(view, url)
                     binding.progressBar.visibility = View.GONE
-                    binding.loadingText.visibility = View.GONE
                     binding.swipeRefreshLayout.isRefreshing = false
                 }
 
@@ -119,16 +95,19 @@ class MainActivity : AppCompatActivity() {
 
                 override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean {
                     val url = request?.url.toString()
-                    
-                    // Allow Firebase Auth and Google Login URLs to stay in the WebView
+                    // Allow the app URL, Google Auth, and Firebase Auth to load in the WebView
                     if (url.startsWith(webAppUrl) || 
                         url.contains("accounts.google.com") || 
-                        url.contains("firebaseapp.com")) {
+                        url.contains("firebaseapp.com") ||
+                        url.contains("google.com/accounts")) {
                         return false 
                     }
-                    
-                    // Open external links in browser
-                    startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
+                    // Open other external links in browser
+                    try {
+                        startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
+                    } catch (e: Exception) {
+                        return false // Fallback to WebView if no browser found
+                    }
                     return true
                 }
             }
@@ -172,7 +151,6 @@ class MainActivity : AppCompatActivity() {
     private fun showOfflineLayout() {
         binding.webView.visibility = View.GONE
         binding.progressBar.visibility = View.GONE
-        binding.loadingText.visibility = View.GONE
         binding.swipeRefreshLayout.isRefreshing = false
         binding.offlineLayout.visibility = View.VISIBLE
     }
