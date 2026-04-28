@@ -240,7 +240,20 @@
             <button type="submit" class="btn primary-btn">Submit Request</button>
           </form>
 
-          <div class="card">
+          <div class="card" style="margin-top: 2rem;">
+            <div class="matching-header" style="background: transparent;">
+              <h2>Your Requests</h2>
+              <p class="subtitle">Status of resources you've requested</p>
+            </div>
+            <div class="matches-container">
+              <ul id="ngoMatchesList" class="matches-list">
+                <li class="empty-state">No requests submitted yet.</li>
+              </ul>
+              <button id="ngoShowMoreBtn" class="btn secondary-btn hidden" style="margin: 1.5rem auto; display: block; width: auto;">View More</button>
+            </div>
+          </div>
+
+          <div id="ocr-scan-section" class="card">
             <h2><span class="icon">📷</span> OCR Survey Scan</h2>
             <p class="subtitle">Upload field report for automatic processing</p>
             <div class="file-upload-wrapper">
@@ -307,18 +320,29 @@
               </select>
             </div>
           </div>
-          <div class="matches-container">
-            <ul id="ngoMatchesList" class="matches-list">
-              <li class="empty-state">Loading matches...</li>
-            </ul>
-            <button id="ngoShowMoreBtn" class="btn secondary-btn hidden" style="margin: 1.5rem auto; display: block; width: auto;">View More</button>
+        
+        <div id="ngoTimeline" class="timeline hidden">
+          <h2>Activity History</h2>
+          <div class="timeline-container">
+            <div class="timeline-item">
+              <h3>Dashboard Accessed</h3>
+              <p>Welcome to your NGO dashboard.</p>
+            </div>
           </div>
         </div>
       </section>
 
       <!-- VOLUNTEER DASHBOARD -->
       <section id="volunteer-dashboard" class="role-dashboard hidden">
-        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 2rem;">
+        <div id="volunteerTimeline" class="timeline hidden">
+          <h2>Activity History</h2>
+          <div class="timeline-container">
+            <div class="timeline-item">
+              <h3>Profile Ready</h3>
+              <p>Your volunteer profile is active.</p>
+            </div>
+          </div>
+        </div>
           <form id="volunteerForm" class="card">
             <h2 class="text-center">🤝 My Profile</h2>
             <p class="subtitle text-center">Keep your details updated for better matching</p>
@@ -369,28 +393,25 @@
             <button type="submit" class="btn primary-btn">Update Profile</button>
           </form>
 
-          <div class="card">
+          <div class="card" style="margin-top: 2rem;">
             <div class="matching-header" style="background: transparent;">
-              <h2>Assignments</h2>
+              <h2>My Assignments</h2>
+              <p class="subtitle">Tasks assigned to you by NGOs or Admins</p>
             </div>
             <div class="matches-container">
               <ul id="volMatchesList" class="matches-list">
-                <li class="empty-state">No active matches.</li>
+                <li class="empty-state">No active assignments.</li>
               </ul>
               <button id="volShowMoreBtn" class="btn secondary-btn hidden" style="margin: 1.5rem auto; display: block; width: auto;">Show More</button>
             </div>
           </div>
-        </div>
       </section>
 
-      <!-- ADMIN PANEL -->
+      <!-- ADMIN DASHBOARD -->
       <section id="admin-dashboard" class="role-dashboard hidden">
-            <!-- Admin History Timeline -->
-            <div class="timeline" id="adminTimeline"></div>
         <div class="admin-dashboard">
-          
-          <div class="card" style="margin-top: 2rem;">
-            <h3>Resource Density Heatmap</h3>
+          <div id="admin-heatmap-section" class="card">
+            <h2><span class="icon">🗺️</span> Resource Density Heatmap</h2>
             <p class="subtitle">Visualizing real-time need distribution across regions</p>
             <div id="adminHeatmap" style="height: 450px; width: 100%; border-radius: 12px; margin-top: 1rem; border: 1px solid var(--border);"></div>
           </div>
@@ -422,51 +443,32 @@
             </div>
           </div>
 
-          <div class="card" style="margin-top: 2rem;">
-            <div class="matching-header" style="background: transparent;">
-              <h2>Manual Allocation</h2>
-              <p class="subtitle">Directly link an NGO request with a specific volunteer</p>
+          <div id="admin-matches-section" class="card" style="margin-top: 2rem;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+              <h2><span class="icon">📋</span> Active Matches</h2>
+              <button id="refreshAdminBtn" class="btn secondary-btn" style="font-size: 0.9rem;">Refresh</button>
             </div>
-            <div style="padding: 2rem; display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 1.5rem;">
-                <div class="form-group">
-                  <label>Select NGO Request</label>
-                  <select id="adminManualNgo" style="margin:0;"></select>
-                </div>
-                <div class="form-group">
-                  <label>Select Volunteer</label>
-                  <select id="adminManualVol" style="margin:0;"></select>
-                </div>
-                <div style="display: flex; align-items: flex-end;">
-                  <button id="adminManualMatchBtn" class="btn primary-btn" style="width: 100%; height: 42px;">Create Match</button>
-                </div>
-            </div>
-          </div>
-
-          <div class="card" style="margin-top: 2rem;">
-            <div class="matching-header" style="background: transparent;">
-              <div>
-                <h2>Global Match Overview</h2>
-                <p class="subtitle">System-wide resource tracking</p>
-              </div>
-              <div class="matching-actions">
-                <button id="runMatchingBtn" class="btn primary-btn" style="font-size: 0.9rem;">Auto Match</button>
-                <button id="refreshAdminBtn" class="btn secondary-btn" style="font-size: 0.9rem;">Refresh</button>
-              </div>
-            </div>
-            
-            <div style="padding: 1rem 2rem; border-bottom: 1px solid var(--border); display: flex; gap: 1rem; align-items: center;">
+            <div style="display: flex; gap: 1rem; margin-bottom: 1.5rem;">
               <input type="text" id="adminMatchSearch" placeholder="Search global data..." style="flex:1; max-width: 400px; margin:0;" />
               <select id="adminMatchSort" style="width: 200px; margin:0;">
-                <option value="score_desc">Rank by Score</option>
-                <option value="date_desc">Rank by Date</option>
+                <option value="newest">Newest First</option>
+                <option value="oldest">Oldest First</option>
+                <option value="urgency">By Urgency</option>
               </select>
             </div>
+            <ul id="adminMatchesList" class="matches-list">
+              <li class="empty-state">Loading matches...</li>
+            </ul>
+            <button id="adminShowMoreBtn" class="btn secondary-btn hidden" style="margin: 1.5rem auto; display: block; width: auto;">Show More</button>
+          </div>
 
-            <div class="matches-container">
-              <ul id="adminMatchesList" class="matches-list">
-                <li class="empty-state">Loading...</li>
-              </ul>
-              <button id="adminShowMoreBtn" class="btn secondary-btn hidden" style="margin: 1.5rem auto; display: block; width: auto;">Show More</button>
+          <div id="adminTimeline" class="timeline hidden">
+            <h2>System Audit Log</h2>
+            <div class="timeline-container">
+              <div class="timeline-item">
+                <h3>Admin Session Started</h3>
+                <p>System monitoring active.</p>
+              </div>
             </div>
           </div>
 
