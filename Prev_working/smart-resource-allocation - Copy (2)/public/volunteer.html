@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Volunteer Dashboard</title>
+  <link rel="stylesheet" href="style.css" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+  <style>
+    #map {
+      height: 250px;
+      margin-bottom: 20px;
+    }
+  </style>
+</head>
+
+<body>
+  <h1>Volunteer Registration</h1>
+  <form id="volunteerForm" class="box">
+    <label>Name:</label><br />
+    <input type="text" id="name" required /><br /><br />
+    <label>Email Address:</label><br />
+    <input type="email" id="email" required /><br /><br />
+    <label>Your Unique Key (share with NGO):</label><br />
+    <input type="text" id="volunteerKeyDisplay" readonly style="width:200px;" /><br /><br />
+    <label>Skills Category:</label><br />
+    <select id="skills" required>
+      <option value="">Select Primary Skill</option>
+      <option value="basic relief">Basic Relief (Food, Shelter, Water)</option>
+      <option value="medical">Medical & First Aid</option>
+      <option value="rescue">Search & Rescue</option>
+      <option value="technical">Technical & Engineering</option>
+      <option value="digital">Digital & Comms Support</option>
+      <option value="specialized">Specialized (Logistics, Translation, etc.)</option>
+    </select><br /><br />
+    <label>Location:</label><br />
+    <input type="text" id="location" required /><br /><br />
+    <label>Latitude:</label><br />
+    <input type="number" id="latitude" step="any" /><br /><br />
+    <label>Longitude:</label><br />
+    <input type="number" id="longitude" step="any" /><br /><br />
+    <button type="button" id="getLocationBtn">Get My Location</button><br /><br />
+    <div id="map"></div>
+    <label>Verified:</label>
+    <input type="checkbox" id="verified" />
+    <br /><br />
+    <label>Availability:</label><br />
+    <select id="availability" required>
+      <option value="">Select</option>
+      <option value="available">Available</option>
+      <option value="busy">Busy</option>
+    </select><br /><br />
+    <button type="submit">Add Volunteer</button>
+  </form>
+  <div class="box">
+    <h2>Previous Registrations</h2>
+    <ul id="matchesList"></ul>
+    <button type="button" id="searchRequestsBtn">Search NGO Requests</button>
+    <div id="keyExchangePlatform" style="margin-top:20px;"></div>
+  </div>
+  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+  <script type="module" src="firebase.js"></script>
+  <script type="module" src="volunteer.js"></script>
+</body>
+
+</html>

@@ -479,6 +479,14 @@ footer a {
 }
 
 .text-center { text-align: center; }
+.hidden { display: none !important; }
+
+.split-layout {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 2rem;
+  align-items: start;
+}
 
 @media (max-width: 600px) {
     .hero { padding-top: 8rem; }

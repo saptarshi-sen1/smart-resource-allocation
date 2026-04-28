@@ -1,0 +1,231 @@
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap');
+
+:root {
+	--primary: #4F46E5;
+	--primary-hover: #4338CA;
+	--secondary: #10B981;
+	--bg-color: #0F172A;
+	--box-bg: rgba(30, 41, 59, 0.7);
+	--text-main: #F8FAFC;
+	--text-muted: #94A3B8;
+	--border-color: rgba(255, 255, 255, 0.1);
+	--danger: #EF4444;
+	--warning: #F59E0B;
+}
+
+* {
+	box-sizing: border-box;
+	margin: 0;
+	padding: 0;
+}
+
+body {
+	font-family: 'Outfit', sans-serif;
+	padding: 20px 40px;
+	background: radial-gradient(circle at top right, #1E1B4B, #0F172A);
+	color: var(--text-main);
+	min-height: 100vh;
+}
+
+h1, h2, h3 {
+	color: #fff;
+	margin-bottom: 15px;
+	font-weight: 600;
+	letter-spacing: 0.5px;
+}
+
+h1 {
+	text-align: center;
+	margin-bottom: 30px;
+	font-size: 2.5rem;
+	background: linear-gradient(135deg, #60A5FA, #A78BFA);
+	-webkit-background-clip: text;
+	-webkit-text-fill-color: transparent;
+}
+
+.box {
+	background: var(--box-bg);
+	padding: 25px;
+	border-radius: 16px;
+	margin-top: 20px;
+	margin-bottom: 20px;
+	backdrop-filter: blur(12px);
+	-webkit-backdrop-filter: blur(12px);
+	border: 1px solid var(--border-color);
+	box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.3);
+	transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.box:hover {
+	transform: translateY(-2px);
+	box-shadow: 0 15px 30px -5px rgba(0, 0, 0, 0.4);
+}
+
+label {
+	font-weight: 500;
+	color: var(--text-muted);
+	display: block;
+	margin-top: 10px;
+	margin-bottom: 5px;
+}
+
+input[type="text"], 
+input[type="number"], 
+input[type="file"],
+select {
+	padding: 12px 15px;
+	width: 100%;
+	max-width: 400px;
+	margin-top: 5px;
+	background: rgba(15, 23, 42, 0.6);
+	border: 1px solid var(--border-color);
+	border-radius: 8px;
+	color: var(--text-main);
+	font-family: 'Outfit', sans-serif;
+	transition: all 0.3s ease;
+}
+
+input[type="text"]:focus, 
+input[type="number"]:focus, 
+select:focus {
+	outline: none;
+	border-color: var(--primary);
+	box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.2);
+}
+
+input[type="checkbox"] {
+	width: 18px;
+	height: 18px;
+	accent-color: var(--primary);
+	margin-right: 8px;
+	vertical-align: middle;
+}
+
+button {
+	background: linear-gradient(135deg, var(--primary), var(--primary-hover));
+	color: white;
+	border: none;
+	border-radius: 8px;
+	cursor: pointer;
+	padding: 12px 24px;
+	font-weight: 600;
+	font-size: 1rem;
+	font-family: 'Outfit', sans-serif;
+	transition: all 0.2s ease;
+	box-shadow: 0 4px 6px -1px rgba(79, 70, 229, 0.3);
+	margin-top: 15px;
+}
+
+button:hover {
+	transform: translateY(-1px);
+	box-shadow: 0 6px 12px -2px rgba(79, 70, 229, 0.4);
+	filter: brightness(1.1);
+}
+
+button:disabled {
+	background: #475569;
+	cursor: not-allowed;
+	box-shadow: none;
+	transform: none;
+	filter: none;
+}
+
+ul {
+	margin-top: 20px;
+	list-style-type: none;
+}
+
+li {
+	background: rgba(30, 41, 59, 0.8);
+	margin-bottom: 12px;
+	padding: 16px;
+	border-radius: 12px;
+	border: 1px solid var(--border-color);
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+	transition: all 0.2s ease;
+}
+
+li:hover {
+	background: rgba(51, 65, 85, 0.8);
+	border-color: rgba(255,255,255,0.2);
+}
+
+#map {
+	border-radius: 12px;
+	overflow: hidden;
+	border: 1px solid var(--border-color);
+	margin-top: 10px;
+	z-index: 1;
+}
+
+/* Specific overrides */
+#ngoKeyBox, #ocrBox, #volunteerMatchingBox {
+	background: var(--box-bg) !important;
+	border: 1px solid var(--border-color) !important;
+	color: var(--text-main);
+}
+
+#ngoKeyBox input, #volunteerKeyDisplay {
+	background: rgba(15, 23, 42, 0.8) !important;
+	color: #60A5FA !important;
+}
+
+.match-score {
+	display: inline-block;
+	background: var(--secondary);
+	color: white;
+	padding: 4px 10px;
+	border-radius: 20px;
+	font-size: 0.85rem;
+	font-weight: bold;
+}
+
+.match-item {
+	display: flex;
+	flex-direction: row;
+	justify-content: space-between;
+	align-items: center;
+}
+
+.match-details {
+	flex: 1;
+}
+
+.match-actions {
+	display: flex;
+	gap: 10px;
+}
+
+/* Tooltip Styles */
+.tooltip {
+  position: relative;
+  display: inline-block;
+  cursor: pointer;
+  border-bottom: 1px dotted var(--text-muted);
+}
+
+.tooltip .tooltiptext {
+  visibility: hidden;
+  width: max-content;
+  background-color: var(--box-bg);
+  color: var(--text-main);
+  text-align: center;
+  border-radius: 6px;
+  padding: 5px 10px;
+  position: absolute;
+  z-index: 2;
+  bottom: 125%;
+  left: 50%;
+  transform: translateX(-50%);
+  opacity: 0;
+  transition: opacity 0.3s;
+  border: 1px solid var(--border-color);
+  box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+}
+
+.tooltip:hover .tooltiptext {
+  visibility: visible;
+  opacity: 1;
+}
