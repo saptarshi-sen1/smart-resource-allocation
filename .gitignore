@@ -78,5 +78,6 @@ firebase.json
 .firebaserc
 firebase.js
 public/firebase.js
+CHANGELOG.md
 y/
 index_backup.html
