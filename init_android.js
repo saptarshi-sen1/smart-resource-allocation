@@ -280,7 +280,8 @@ class MainActivity : AppCompatActivity() {
     private lateinit var binding: ActivityMainBinding
     
     // REPLACE THIS WITH YOUR FIREBASE HOSTING URL
-    private val webAppUrl = "https://smart-resource-allocation-abc.web.app" 
+    // CORRECT FIREBASE HOSTING URL
+    private val webAppUrl = "https://smart-resource-allocatio-ff7e5.web.app" 
     
     private var filePathCallback: ValueCallback<Array<Uri>>? = null
 
@@ -315,6 +316,8 @@ class MainActivity : AppCompatActivity() {
                 setSupportZoom(false)
                 allowFileAccess = true
                 mediaPlaybackRequiresUserGesture = false
+                // Enable multi-window for popups if needed, but we'll stick to redirect for app
+                setSupportMultipleWindows(true)
             }
 
             webViewClient = object : WebViewClient() {
@@ -343,11 +346,19 @@ class MainActivity : AppCompatActivity() {
 
                 override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean {
                     val url = request?.url.toString()
-                    if (url.startsWith(webAppUrl)) {
-                        return false // Open in WebView
+                    // Allow the app URL, Google Auth, and Firebase Auth to load in the WebView
+                    if (url.startsWith(webAppUrl) || 
+                        url.contains("accounts.google.com") || 
+                        url.contains("firebaseapp.com") ||
+                        url.contains("google.com/accounts")) {
+                        return false 
                     }
-                    // Open external links in browser
-                    startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
+                    // Open other external links in browser
+                    try {
+                        startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
+                    } catch (e: Exception) {
+                        return false // Fallback to WebView if no browser found
+                    }
                     return true
                 }
             }

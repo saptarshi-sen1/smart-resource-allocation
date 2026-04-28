@@ -443,15 +443,36 @@ function handleGoogleError(err) {
   }
 }
 
-document.getElementById("googleLoginBtn").addEventListener("click", () => {
-  signInWithPopup(auth, googleProvider).catch(handleGoogleError);
-});
+function isMobileWebView() {
+  const ua = navigator.userAgent || navigator.vendor || window.opera;
+  const isAndroid = /android/i.test(ua);
+  const isIos = /iPad|iPhone|iPod/.test(ua) && !window.MSStream;
+  // Common check for WebView: Android's Version/X.X or iOS's specific triggers
+  return (isAndroid && /Version\//.test(ua)) || (isIos && !/Safari/.test(ua));
+}
+
+async function startGoogleAuth(role = null) {
+  if (role) sessionStorage.setItem("pendingRegistrationRole", role);
+  
+  if (isMobileWebView()) {
+    // WebViews MUST use redirect
+    await signInWithRedirect(auth, googleProvider);
+  } else {
+    // Desktop/Browser uses smooth popup
+    try {
+      await signInWithPopup(auth, googleProvider);
+    } catch (err) {
+      handleGoogleError(err);
+    }
+  }
+}
+
+document.getElementById("googleLoginBtn").addEventListener("click", () => startGoogleAuth());
 
 // Google Register
 document.getElementById("googleRegBtn").addEventListener("click", () => {
   const role = document.getElementById("regRole").value;
-  sessionStorage.setItem("pendingRegistrationRole", role);
-  signInWithPopup(auth, googleProvider).catch(handleGoogleError);
+  startGoogleAuth(role);
 });
 
 // Logout

@@ -20,32 +20,17 @@
 
     <ProgressBar
         android:id="@+id/progressBar"
-        android:layout_width="48dp"
-        android:layout_height="48dp"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
         android:visibility="gone"
-        android:indeterminateTint="@color/primary"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent" />
 
-    <TextView
-        android:id="@+id/loadingText"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="16dp"
-        android:text="Optimizing resources..."
-        android:textColor="@color/primary"
-        android:textSize="16sp"
-        android:fontFamily="sans-serif-medium"
-        android:visibility="gone"
-        app:layout_constraintTop_toBottomOf="@id/progressBar"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintEnd_toEndOf="parent" />
-
     <LinearLayout
         android:id="@+id/offlineLayout"
-        android:layout_width="280dp"
+        android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:orientation="vertical"
         android:gravity="center"
@@ -56,32 +41,25 @@
         app:layout_constraintTop_toTopOf="parent">
 
         <ImageView
-            android:layout_width="80dp"
-            android:layout_height="80dp"
+            android:layout_width="64dp"
+            android:layout_height="64dp"
             android:src="@android:drawable/ic_dialog_alert"
             app:tint="@color/primary" />
 
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginTop="24dp"
+            android:layout_marginTop="16dp"
             android:text="@string/offline_message"
             android:textAlignment="center"
-            android:textSize="16sp"
-            android:textColor="#334155"
-            android:fontFamily="sans-serif"
-            android:lineSpacingExtra="4dp" />
+            android:padding="16dp" />
 
         <Button
             android:id="@+id/retryButton"
-            android:layout_width="match_parent"
-            android:layout_height="56dp"
-            android:layout_marginTop="32dp"
-            android:text="Retry Connection"
-            android:textAllCaps="false"
-            android:backgroundTint="@color/primary"
-            android:textColor="@color/white"
-            app:cornerRadius="12dp" />
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:text="Retry" />
     </LinearLayout>
 
 </androidx.constraintlayout.widget.ConstraintLayout>
