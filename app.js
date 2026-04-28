@@ -487,7 +487,15 @@ document.getElementById("showRegisterBtn").addEventListener("click", () => {
   document.getElementById("showLoginBtn").classList.remove("active");
 });
 
-// Restore session on page load
+// ─── Auth Initialization ───────────────────────────────────────────────────
+onAuthStateChanged(auth, async user => {
+  if (user) {
+    await handleAuthSuccess(user);
+  } else {
+    setView("auth");
+  }
+});
+
 (async () => {
   const overlay = document.getElementById("loading-overlay");
   if (overlay) overlay.classList.remove("hidden");
@@ -501,23 +509,15 @@ document.getElementById("showRegisterBtn").addEventListener("click", () => {
         await saveUserRole(result.user.uid, result.user.email, pendingRole);
         sessionStorage.removeItem("pendingRegistrationRole");
         await handleAuthSuccess(result.user, pendingRole);
-        return; // handleAuthSuccess will take it from here
       }
     }
   } catch (err) {
     console.error("Redirect auth error:", err);
     if (err.code !== 'auth/popup-closed-by-user') {
-        alert("Google sign-in failed: " + err.message);
+      alert("Google sign-in failed: " + err.message);
     }
+    setView("auth");
   }
-
-  onAuthStateChanged(auth, async user => {
-    if (user) {
-      await handleAuthSuccess(user);
-    } else {
-      setView("auth");
-    }
-  });
 })();
 
 // ─── Geolocation Buttons ────────────────────────────────────────────────────

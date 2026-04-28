@@ -24,7 +24,8 @@ jobs:
       with:
         java-version: '17'
         distribution: 'temurin'
-        cache: gradle
+        # Disabling cache to fix 400 error
+        # cache: gradle
 
     - name: Grant execute permission for gradlew
       run: chmod +x gradlew
