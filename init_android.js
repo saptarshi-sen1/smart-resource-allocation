@@ -316,6 +316,10 @@ class MainActivity : AppCompatActivity() {
                 setSupportZoom(false)
                 allowFileAccess = true
                 mediaPlaybackRequiresUserGesture = false
+                // FIX: Remove 'Version/X.X' to bypass 'disallowed_useragent' block by Google
+                val defaultUA = userAgentString
+                userAgentString = defaultUA.replace("; wv", "").replace("Version/\\d+\\.\\d+\\s+".toRegex(), "")
+                
                 // Enable multi-window for popups if needed, but we'll stick to redirect for app
                 setSupportMultipleWindows(true)
             }
