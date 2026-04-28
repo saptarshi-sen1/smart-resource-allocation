@@ -400,7 +400,7 @@ document.getElementById("loginForm").addEventListener("submit", async e => {
 // Email/Password Register
 document.getElementById("registerForm").addEventListener("submit", async e => {
   e.preventDefault();
-  const role = document.getElementById("regRole").value;
+  const role = document.querySelector('input[name="regRole"]:checked')?.value || "Volunteer";
   const email = document.getElementById("regEmail").value.trim();
   const password = document.getElementById("regPassword").value;
   try {
@@ -460,7 +460,13 @@ async function startGoogleAuth(role = null) {
   } else {
     // Desktop/Browser uses smooth popup
     try {
-      await signInWithPopup(auth, googleProvider);
+      const result = await signInWithPopup(auth, googleProvider);
+      // If we just registered, save the role
+      const pendingRole = sessionStorage.getItem("pendingRegistrationRole");
+      if (pendingRole && result.user) {
+        await saveUserRole(result.user.uid, result.user.email, pendingRole);
+        sessionStorage.removeItem("pendingRegistrationRole");
+      }
     } catch (err) {
       handleGoogleError(err);
     }
@@ -471,7 +477,7 @@ document.getElementById("googleLoginBtn").addEventListener("click", () => startG
 
 // Google Register
 document.getElementById("googleRegBtn").addEventListener("click", () => {
-  const role = document.getElementById("regRole").value;
+  const role = document.querySelector('input[name="regRole"]:checked')?.value || "Volunteer";
   startGoogleAuth(role);
 });
 
@@ -1360,5 +1366,13 @@ if (processOcrBtnEl) {
       processOcrBtnEl.disabled = false;
       ocrStatusEl.classList.add("hidden");
     }
+  });
+}
+
+const jumpToOcrBtn = document.getElementById("jumpToOcrBtn");
+if (jumpToOcrBtn) {
+  jumpToOcrBtn.addEventListener("click", () => {
+    const el = document.getElementById("ocr-scan-section");
+    if (el) el.scrollIntoView({ behavior: "smooth" });
   });
 }

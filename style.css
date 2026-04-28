@@ -427,6 +427,58 @@ footer a {
   border-color: var(--primary);
 }
 
+/* Role Selector */
+.role-selector {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+  margin-bottom: 0.5rem;
+}
+
+.role-selector input[type="radio"] {
+  display: none;
+}
+
+.role-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 1.25rem;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  cursor: pointer;
+  background: var(--card);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.role-btn:hover {
+  border-color: var(--primary);
+  transform: translateY(-2px);
+  background: rgba(29, 78, 216, 0.05);
+}
+
+.role-selector input[type="radio"]:checked + .role-btn {
+  border-color: var(--primary);
+  background: linear-gradient(135deg, rgba(29, 78, 216, 0.1), rgba(29, 78, 216, 0.05));
+  box-shadow: 0 0 0 2px var(--primary);
+}
+
+.role-icon {
+  font-size: 1.75rem;
+  margin-bottom: 0.5rem;
+}
+
+.role-btn span:last-child {
+  font-weight: 600;
+  font-size: 0.95rem;
+  color: var(--text);
+}
+
+.role-selector input[type="radio"]:checked + .role-btn span:last-child {
+  color: var(--primary);
+}
+
 .divider {
   display: flex;
   align-items: center;

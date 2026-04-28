@@ -142,11 +142,20 @@
       <!-- Register Form -->
       <form id="registerForm" class="auth-form">
         <div class="form-group">
-          <label for="regRole">Register as</label>
-          <select id="regRole" required>
-            <option value="Volunteer">Volunteer</option>
-            <option value="NGO">NGO / Organization</option>
-          </select>
+          <label>Register as</label>
+          <div class="role-selector">
+            <input type="radio" id="roleVol" name="regRole" value="Volunteer" checked>
+            <label for="roleVol" class="role-btn">
+              <span class="role-icon">🤝</span>
+              <span>Volunteer</span>
+            </label>
+            
+            <input type="radio" id="roleNgo" name="regRole" value="NGO">
+            <label for="roleNgo" class="role-btn">
+              <span class="role-icon">🏢</span>
+              <span>NGO</span>
+            </label>
+          </div>
         </div>
         <div class="form-group">
           <label for="regEmail">Email Address</label>
@@ -237,8 +246,32 @@
               </div>
             </div>
             
-            <button type="submit" class="btn primary-btn">Submit Request</button>
+            <div style="display: flex; gap: 1rem; margin-top: 1.5rem;">
+              <button type="submit" class="btn primary-btn" style="flex: 2;">Submit Request</button>
+              <button type="button" id="jumpToOcrBtn" class="btn secondary-btn" style="flex: 1; font-size: 0.85rem;">📷 Scan Paper</button>
+            </div>
           </form>
+
+          <div id="ocr-scan-section" class="card" style="border: 2px dashed var(--primary); background: rgba(29, 78, 216, 0.02);">
+            <h2 style="color: var(--primary);"><span class="icon">📷</span> OCR Survey Scan</h2>
+            <p class="subtitle">Quickly pre-fill the form by scanning a paper survey</p>
+            <div class="file-upload-wrapper">
+              <input type="file" id="surveyImage" accept="image/*" />
+              <div class="file-upload-label">
+                  <div>
+                      <span style="font-size: 2.5rem; display: block; margin-bottom: 0.5rem;">📸</span>
+                      <span style="font-weight: 600;">Tap to Scan or Upload Report</span>
+                  </div>
+              </div>
+            </div>
+            <div id="ocrPreview" class="image-preview"></div>
+            <div id="ocrStatus" class="status-msg hidden">
+              <div class="spinner"></div>
+              <span id="ocrStatusText">Analyzing survey data...</span>
+            </div>
+            <button id="processOcrBtn" class="btn primary-btn" disabled style="margin-top: 1rem;">Process & Auto-fill Form</button>
+          </div>
+        </div>
 
           <div class="card" style="margin-top: 2rem;">
             <div class="matching-header" style="background: transparent;">
@@ -251,26 +284,6 @@
               </ul>
               <button id="ngoShowMoreBtn" class="btn secondary-btn hidden" style="margin: 1.5rem auto; display: block; width: auto;">View More</button>
             </div>
-          </div>
-
-          <div id="ocr-scan-section" class="card">
-            <h2><span class="icon">📷</span> OCR Survey Scan</h2>
-            <p class="subtitle">Upload field report for automatic processing</p>
-            <div class="file-upload-wrapper">
-              <input type="file" id="surveyImage" accept="image/*" />
-              <div class="file-upload-label">
-                  <div>
-                      <span style="font-size: 2rem; display: block; margin-bottom: 0.5rem;">📁</span>
-                      <span>Click or drag image here</span>
-                  </div>
-              </div>
-            </div>
-            <div id="ocrPreview" class="image-preview"></div>
-            <div id="ocrStatus" class="status-msg hidden">
-              <div class="spinner"></div>
-              <span id="ocrStatusText">Analyzing...</span>
-            </div>
-            <button id="processOcrBtn" class="btn secondary-btn" disabled>Process Document</button>
           </div>
         </div>
 
