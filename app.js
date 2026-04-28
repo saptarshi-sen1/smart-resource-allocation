@@ -202,6 +202,50 @@ function renderMatchList(listId, showMoreBtnId, items, showAll) {
 }
 
 // ─── Auth Flow ──────────────────────────────────────────────────────────────
+async function logActivity(uid, action, details) {
+  try {
+    await addDoc(collection(db, "history"), {
+      uid,
+      action,
+      details,
+      timestamp: new Date().toISOString(),
+      role: currentRole
+    });
+  } catch (e) { console.error("Failed to log activity:", e); }
+}
+
+async function loadHistory(uid, timelineId) {
+  const container = document.querySelector(`#${timelineId} .timeline-container`);
+  if (!container) return;
+  
+  try {
+    const q = query(
+      collection(db, "history"),
+      where("uid", "==", uid),
+      orderBy("timestamp", "desc")
+    );
+    const snap = await getDocs(q);
+    
+    if (snap.empty) {
+      container.innerHTML = '<div class="timeline-item"><p>No activity recorded yet.</p></div>';
+      return;
+    }
+    
+    container.innerHTML = "";
+    snap.forEach(doc => {
+      const data = doc.data();
+      const div = document.createElement("div");
+      div.className = "timeline-item";
+      div.innerHTML = `
+        <h3>${data.action}</h3>
+        <p>${data.details}</p>
+        <small>${new Date(data.timestamp).toLocaleString()}</small>
+      `;
+      container.appendChild(div);
+    });
+  } catch (e) { console.error("Failed to load history:", e); }
+}
+
 async function getUserRole(uid) {
   const snap = await getDoc(doc(db, "users", uid));
   return snap.exists() ? snap.data().role : null;
@@ -277,15 +321,22 @@ async function handleAuthSuccess(user, roleOverride) {
       showSection("admin-dashboard");
       loadAdminMatches();
       renderCharts();
+      loadHistory(user.uid, "adminTimeline");
     } else if (role === "NGO") {
       showSection("ngo-dashboard");
       loadNgoMatches();
       initNgoDashboard();
+      loadHistory(user.uid, "ngoTimeline");
     } else {
       showSection("volunteer-dashboard");
       loadVolMatches();
       prefillVolunteerForm();
+      loadHistory(user.uid, "volunteerTimeline");
     }
+    
+    // Log login
+    logActivity(user.uid, "Login", "Successfully signed into the dashboard.");
+
   } catch (err) {
     console.error("Auth success handler failed:", err);
     alert("Authentication error. Please try logging in again.");
