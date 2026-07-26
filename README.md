@@ -1,53 +1,36 @@
-# CrisisConnect: Smart Resource Allocation & Disaster Response
+This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
-CrisisConnect is a specialized platform designed to optimize disaster response by connecting NGOs with volunteers through intelligent matching. The system leverages real-time data, AI-driven document processing, and a modern web interface to streamline resource allocation in high-pressure environments.
+## Getting Started
 
-## Platform Overview
+First, run the development server:
 
-The platform provides dedicated interfaces for three distinct user roles, ensuring that every participant has the tools they need to act effectively.
+```bash
+npm run dev
+# or
+yarn dev
+# or
+pnpm dev
+# or
+bun dev
+```
 
-### Volunteer Dashboard
-Designed for individuals on the ground, this dashboard allows volunteers to manage their profiles, highlight their specific skill sets (Medical, Rescue, Logistics), and view active requests on interactive maps.
+Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
 
-### NGO Dashboard
-The central hub for organizations to broadcast their needs. It features a unique OCR tool that allows field officers to scan paper survey forms and instantly convert them into digital resource requests.
+You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
 
-### Admin Dashboard
-A high-level command center for system administrators to monitor platform-wide activity, analyze resource distribution via data charts, and manage global disaster response statistics.
+This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
 
-## Core Capabilities
+## Learn More
 
-### AI-Powered OCR (Optical Character Recognition)
-Integrated with Tesseract.js, the platform allows users to scan physical reports and automatically populate digital forms. This reduces manual entry errors and significantly speeds up the reporting process during emergencies.
+To learn more about Next.js, take a look at the following resources:
 
-### Intelligent Matching Engine
-A proximity and skill-aware algorithm that ranks volunteers based on their distance from a disaster site and how well their expertise matches the specific requirements of an NGO's request.
+- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
+- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
 
-### Secure Allocation
-A two-way key exchange system ensures that resources are delivered to the correct person, providing a layer of security and accountability for distributed aid.
+You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
 
-### Mobile-Ready (Android)
-The project includes a robust Android implementation using a customized WebView. It features specific fixes for Google OAuth compatibility (User-Agent spoofing) to ensure a seamless login experience on mobile devices.
+## Deploy on Vercel
 
-## Technical Stack
+The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
 
-*   **Frontend**: HTML5, Vanilla CSS3 (Glassmorphism UI), JavaScript (ES6+)
-*   **Database**: Firebase Firestore (Real-time NoSQL)
-*   **Authentication**: Firebase Auth (Email/Password & Google Login)
-*   **AI Engine**: Tesseract.js
-*   **Data Visualization**: Chart.js
-*   **Mapping**: Leaflet.js
-*   **DevOps**: GitHub Actions (CI/CD and Automated Android Builds)
-
-## Setup and Installation
-
-### Web Platform
-1. Configure your Firebase project and add the credentials to `env.js`.
-2. Deploy using the Firebase CLI: `firebase deploy`.
-
-### Android Application
-1. Run `node init_android.js` to generate the Android project structure.
-2. The project is pre-configured for GitHub Actions; pushing to the `android-app` branch will automatically trigger a production APK build.
-
-## Multilingual Support
-Built-in support for English, Hindi, and Bengali via Google Translate integration, making the platform accessible to a wider demographic during regional crises.
+Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
