@@ -1,5 +1,6 @@
 import { db, auth, googleProvider } from "./firebase.js";
 import { ADMIN_EMAILS, ADMIN_PASSWORDS, GEMINI_API_KEY } from "./env.js";
+import { initOfflineSync, isOnline, queueOfflineAction, getCachedData, cacheData } from "./offlineSync.js";
 import {
   collection,
   addDoc,
@@ -21,6 +22,9 @@ import {
   onAuthStateChanged
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 
+// Initialize Offline-First Engine
+initOfflineSync(db, { collection, addDoc, setDoc, doc });
+
 // Normalise admin emails for case-insensitive comparison
 const ADMIN_EMAILS_LOWER = ADMIN_EMAILS.map(e => e.toLowerCase());
 
@@ -38,6 +42,94 @@ let ngoAllMatches = [];
 let ngoShowAll = false;
 let volAllMatches = [];
 let volShowAll = false;
+
+// ─── Dynamic Priority Scoring & Time-Aging Algorithm ──────────────────────
+function getHaversineDistance(lat1, lon1, lat2, lon2) {
+  if (lat1 === null || lon1 === null || lat2 === null || lon2 === null) return null;
+  const R = 6371; // Earth radius in km
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLon = (lon2 - lon1) * Math.PI / 180;
+  const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+            Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+            Math.sin(dLon / 2) * Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
+}
+
+export function calculateDynamicPriorityScore(req, vol = null) {
+  const need = (req.needType || "").toLowerCase();
+  const desc = (req.description || "").toLowerCase();
+  
+  // 1. Base Need Severity Weight
+  let baseSeverity = 40;
+  if (need.includes("medical") || need.includes("doctor") || need.includes("first aid") || desc.includes("trapped") || desc.includes("injury")) {
+    baseSeverity = 100;
+  } else if (need.includes("food") || need.includes("water") || need.includes("ration")) {
+    baseSeverity = 75;
+  } else if (need.includes("shelter") || need.includes("tent") || need.includes("blanket")) {
+    baseSeverity = 75;
+  } else if (need.includes("rescue")) {
+    baseSeverity = 95;
+  }
+
+  // 2. Urgency Multiplier
+  let urgencyMultiplier = 1.0;
+  if (req.urgency === "High") urgencyMultiplier = 2.0;
+  else if (req.urgency === "Medium") urgencyMultiplier = 1.5;
+
+  // 3. Affected People Weight
+  const people = req.peopleAffected || 0;
+  const peopleScore = Math.min(100, Math.round(Math.log10(people + 1) * 25));
+
+  // 4. Time-Progression Aging Weight (+5 points per hour elapsed)
+  // Ensures non-essential or older items steadily increase priority and are never stuck indefinitely!
+  const createdAtMs = req.createdAt ? new Date(req.createdAt).getTime() : Date.now();
+  const elapsedHours = Math.max(0, (Date.now() - createdAtMs) / (1000 * 60 * 60));
+  const agingBonus = Math.round(elapsedHours * 5);
+
+  let score = Math.round((baseSeverity * urgencyMultiplier) + peopleScore + agingBonus);
+
+  // 5. If Volunteer is provided, compute Proximity & Skill Match Score
+  if (vol) {
+    const skills = (vol.skills || []).map(s => s.toLowerCase());
+    let skillMatched = skills.includes(need) || skills.some(s => need.includes(s) || s.includes(need));
+    if (skillMatched) score += 300;
+
+    const dist = getHaversineDistance(req.latitude, req.longitude, vol.latitude, vol.longitude);
+    if (dist !== null) {
+      if (dist <= 5) score += 150;
+      else if (dist <= 25) score += 100;
+      else if (dist <= 100) score += 50;
+    } else if ((vol.location || "").toLowerCase() === (req.location || "").toLowerCase()) {
+      score += 50;
+    }
+
+    if (vol.availability === "available") score += 20;
+  }
+
+  return {
+    totalScore: score,
+    baseSeverity,
+    urgencyMultiplier,
+    peopleScore,
+    agingBonus,
+    elapsedHours: Math.round(elapsedHours)
+  };
+}
+
+function getPriorityBadgeClass(score) {
+  if (score >= 500) return 'priority-critical';
+  if (score >= 300) return 'priority-urgent';
+  if (score >= 150) return 'priority-elevated';
+  return 'priority-normal';
+}
+
+function getPriorityLabel(score) {
+  if (score >= 500) return '🔥 CRITICAL';
+  if (score >= 300) return '⚡ URGENT';
+  if (score >= 150) return '🟡 ELEVATED';
+  return '🟢 NORMAL';
+}
 
 // ─── Gemini API Integration ──────────────────────────────────────────────────
 const GEMINI_ENDPOINT =
@@ -128,14 +220,43 @@ function setView(view) {
 
 }
 
-function setGeoOnClick(latId, lngId) {
+async function reverseGeocode(lat, lng) {
+  try {
+    const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=14`);
+    if (res.ok) {
+      const data = await res.json();
+      if (data.display_name) {
+        return data.display_name.split(',').slice(0, 3).join(',').trim();
+      }
+    }
+  } catch (e) {
+    console.warn("Reverse geocode network error, using lat/lng string fallback:", e);
+  }
+  return `GPS Location (${parseFloat(lat).toFixed(4)}° N, ${parseFloat(lng).toFixed(4)}° E)`;
+}
+
+function setGeoOnClick(latId, lngId, targetLocId = null) {
   if (!navigator.geolocation) { alert("Geolocation not supported."); return; }
+  
+  const locInput = targetLocId ? document.getElementById(targetLocId) : null;
+  if (locInput) locInput.value = "Fetching address...";
+
   navigator.geolocation.getCurrentPosition(
-    pos => {
-      document.getElementById(latId).value = pos.coords.latitude.toFixed(6);
-      document.getElementById(lngId).value = pos.coords.longitude.toFixed(6);
+    async pos => {
+      const lat = pos.coords.latitude.toFixed(6);
+      const lng = pos.coords.longitude.toFixed(6);
+      document.getElementById(latId).value = lat;
+      document.getElementById(lngId).value = lng;
+      
+      if (locInput) {
+        const address = await reverseGeocode(lat, lng);
+        locInput.value = address;
+      }
     },
-    () => alert("Could not get location. Please allow GPS access.")
+    () => {
+      alert("Could not get location. Please allow GPS access.");
+      if (locInput) locInput.value = "";
+    }
   );
 }
 
@@ -167,6 +288,10 @@ function renderMatchList(listId, showMoreBtnId, items, showAll) {
     }
     const statusColor = volStatus.toLowerCase().includes('inactive') || volStatus.toLowerCase().includes('busy') ? 'var(--danger)' : 'var(--secondary)';
 
+    const numScore = typeof m.score === 'number' ? m.score : 0;
+    const badgeClass = getPriorityBadgeClass(numScore);
+    const priorityLabel = getPriorityLabel(numScore);
+
     li.innerHTML = `
       <div class="match-info">
         <div class="tooltip"><strong>${m.volunteerName || "N/A"}</strong><span class="tooltiptext">Email: ${m.volunteerEmail || 'N/A'}</span></div><br>
@@ -178,7 +303,7 @@ function renderMatchList(listId, showMoreBtnId, items, showAll) {
         <small>${m.requestLocation || ""}</small>
       </div>
       <div class="match-score">
-        <span class="badge ${m.type === 'Manual' ? 'badge-active' : 'badge-pending'}">${m.manualLabel || 'Score: ' + (m.score ?? 'N/A')}</span><br>
+        <span class="badge ${badgeClass}">${m.manualLabel || priorityLabel + ' (' + numScore + ' pts)'}</span><br>
         <small>${m.createdAt ? new Date(m.createdAt).toLocaleDateString() : ""}</small>
         <div style="margin-top: 5px;">
            <a href="mailto:${m.volunteerEmail || m.ngoEmail || ''}" target="_blank"><button class="btn secondary-btn" style="padding: 4px 8px; font-size: 0.8rem; margin: 0;">Contact</button></a>
@@ -481,24 +606,48 @@ document.getElementById("googleRegBtn").addEventListener("click", () => {
   startGoogleAuth(role);
 });
 
-// Logout
+// Logout & Session Purge
 document.getElementById("logoutBtn").addEventListener("click", async () => {
-  // Sign out from Firebase
-  await signOut(auth);
-  // Clear any persisted auth data
+  try { await signOut(auth); } catch(e) {}
   try { localStorage.clear(); } catch(e) {}
   try { sessionStorage.clear(); } catch(e) {}
   currentUser = null;
   currentRole = null;
-  // Reset auth UI to login view
-  const loginForm = document.getElementById("loginForm");
-  const registerForm = document.getElementById("registerForm");
-  loginForm.classList.add("active");
-  registerForm.classList.remove("active");
-  document.getElementById("showLoginBtn").classList.add("active");
-  document.getElementById("showRegisterBtn").classList.remove("active");
-  setView("auth");
+  window.location.replace("index.html");
 });
+
+// Password Visibility Toggle Event Binding
+document.querySelectorAll(".password-toggle-btn").forEach(btn => {
+  btn.addEventListener("click", (e) => {
+    e.preventDefault();
+    const inputId = btn.getAttribute("toggle-for");
+    const input = document.getElementById(inputId);
+    if (!input) return;
+    if (input.type === "password") {
+      input.type = "text";
+      btn.textContent = "🙈";
+    } else {
+      input.type = "password";
+      btn.textContent = "👁️";
+    }
+  });
+});
+
+// Check for exported OCR Survey data from ocr.html
+(() => {
+  const pendingOcr = sessionStorage.getItem("pending_ocr_export");
+  if (pendingOcr) {
+    try {
+      const data = JSON.parse(pendingOcr);
+      sessionStorage.removeItem("pending_ocr_export");
+      if (data.needType) document.getElementById("needType").value = data.needType;
+      if (data.urgency) document.getElementById("urgency").value = data.urgency;
+      if (data.peopleAffected) document.getElementById("peopleAffected").value = data.peopleAffected;
+      if (data.location) document.getElementById("requestLocation").value = data.location;
+      if (data.description) document.getElementById("requestDescription").value = data.description;
+    } catch(e) {}
+  }
+})();
 
 // Auth Tabs Toggle
 document.getElementById("showLoginBtn").addEventListener("click", () => {
@@ -550,10 +699,10 @@ document.getElementById("showRegisterBtn").addEventListener("click", () => {
 
 // ─── Geolocation Buttons ────────────────────────────────────────────────────
 document.getElementById("ngoGetLocationBtn").addEventListener("click", () =>
-  setGeoOnClick("requestLat", "requestLng")
+  setGeoOnClick("requestLat", "requestLng", "requestLocation")
 );
 document.getElementById("volGetLocationBtn").addEventListener("click", () =>
-  setGeoOnClick("volLat", "volLng")
+  setGeoOnClick("volLat", "volLng", "volLocation")
 );
 
 // ─── NGO Request Form ────────────────────────────────────────────────────────
@@ -576,24 +725,33 @@ document.getElementById("requestForm").addEventListener("submit", async e => {
 
   const aiResult = await verifyRequestWithAI(needType, description);
 
+  const requestPayload = {
+    ngoName,
+    needType,
+    description,
+    location,
+    latitude,
+    longitude,
+    urgency,
+    peopleAffected,
+    verified: aiResult.verified,
+    aiGenuineness: aiResult.verified ? `${aiResult.score}/100` : "Not Verified",
+    aiSummary: aiResult.summary || aiResult.reason,
+    status: "new",
+    createdAt: new Date().toISOString(),
+    submittedBy: currentUser.uid,
+    email: currentUser.email || ""
+  };
+
   try {
-    await addDoc(collection(db, "requests"), {
-      ngoName,
-      needType,
-      description,
-      location,
-      latitude,
-      longitude,
-      urgency,
-      peopleAffected,
-      verified: aiResult.verified,
-      aiGenuineness: aiResult.verified ? `${aiResult.score}/100` : "Not Verified",
-      aiSummary: aiResult.summary || aiResult.reason,
-      status: "new",
-      createdAt: new Date().toISOString(),
-      submittedBy: currentUser.uid,
-      email: currentUser.email || ""
-    });
+    if (!isOnline()) {
+      queueOfflineAction("ADD_REQUEST", requestPayload);
+      alert("⚡ Offline Mode Active!\nYour NGO request has been saved locally. It will auto-upload as soon as internet connection is restored.");
+      e.target.reset();
+      return;
+    }
+
+    await addDoc(collection(db, "requests"), requestPayload);
 
     if (aiResult.verified) {
       alert(`✅ Request submitted!\nAI Verification: PASSED (Score: ${aiResult.score}/100)`);
@@ -602,7 +760,10 @@ document.getElementById("requestForm").addEventListener("submit", async e => {
     }
     e.target.reset();
   } catch (err) {
-    alert("Error submitting request: " + err.message);
+    console.warn("Firestore error, queueing request offline:", err);
+    queueOfflineAction("ADD_REQUEST", requestPayload);
+    alert("⚡ Saved Offline!\nCould not connect to server. Saved locally and queued for auto-upload.");
+    e.target.reset();
   } finally {
     btn.disabled = false;
     btn.textContent = "Submit Request";
@@ -625,24 +786,39 @@ document.getElementById("volunteerForm").addEventListener("submit", async e => {
   btn.disabled = true;
   btn.textContent = "Saving...";
 
+  let existingKey = null;
   try {
-    // Generate a unique key once; keep existing key if already set
     const existingSnap = await getDoc(doc(db, "volunteers", currentUser.uid));
-    const existingKey = existingSnap.exists() ? existingSnap.data().uniqueKey : null;
-    const uniqueKey = existingKey || Math.random().toString(36).substr(2, 8).toUpperCase();
+    if (existingSnap.exists()) existingKey = existingSnap.data().uniqueKey;
+  } catch(err) {}
 
-    await setDoc(doc(db, "volunteers", currentUser.uid), {
-      name, skills, location, latitude, longitude, availability,
-      uniqueKey,
-      email: currentUser.email || "",
-      lastLogin: new Date().toISOString(),
-      createdAt: existingSnap.exists() ? existingSnap.data().createdAt : new Date().toISOString(),
-      uid: currentUser.uid
-    });
+  const uniqueKey = existingKey || Math.random().toString(36).substr(2, 8).toUpperCase();
+
+  const profileData = {
+    name, skills, location, latitude, longitude, availability,
+    uniqueKey,
+    email: currentUser.email || "",
+    lastLogin: new Date().toISOString(),
+    createdAt: new Date().toISOString(),
+    uid: currentUser.uid
+  };
+
+  try {
+    if (!isOnline()) {
+      queueOfflineAction("UPDATE_VOLUNTEER_PROFILE", { uid: currentUser.uid, profileData });
+      document.getElementById("volUniqueKey").value = uniqueKey;
+      alert("⚡ Profile saved locally offline! Changes will auto-sync when online.");
+      return;
+    }
+
+    await setDoc(doc(db, "volunteers", currentUser.uid), profileData, { merge: true });
     document.getElementById("volUniqueKey").value = uniqueKey;
     alert("Profile saved!");
   } catch (err) {
-    alert("Error saving profile: " + err.message);
+    console.warn("Firestore error saving volunteer profile, queueing offline:", err);
+    queueOfflineAction("UPDATE_VOLUNTEER_PROFILE", { uid: currentUser.uid, profileData });
+    document.getElementById("volUniqueKey").value = uniqueKey;
+    alert("⚡ Profile saved locally offline! Will auto-sync when connection returns.");
   } finally {
     btn.disabled = false;
     btn.textContent = "Update Profile";
@@ -1116,23 +1292,10 @@ async function runMatchingAlgorithm(silent = false) {
 
         for (const volDoc of volunteersSnap.docs) {
           const vol = volDoc.data();
-          let score = 0;
-          
-          const skills = (vol.skills || []).map(s => s.toLowerCase());
-          const need = (req.needType || "").toLowerCase();
-          
-          let skillMatched = false;
-          if (skills.includes(need)) skillMatched = true;
-          else if (skills.some(s => need.includes(s) || s.includes(need))) skillMatched = true;
+          const scoreResult = calculateDynamicPriorityScore(req, vol);
+          const score = scoreResult.totalScore;
 
-          // Huge boost if a single skill matches!
-          if (skillMatched) score += 500;
-
-          if ((vol.location || "").toLowerCase() === (req.location || "").toLowerCase()) score += 3;
-          if (vol.availability === "available") score += 2;
-          if (req.urgency === "High") score += 1;
-
-          if (score > bestScore && score >= 500) { // Require skill match
+          if (score > bestScore && score >= 200) {
             bestScore = score;
             best = { id: volDoc.id, ...vol };
           }

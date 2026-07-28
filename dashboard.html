@@ -31,13 +31,17 @@
   
   <div class="top-controls">
     <div id="google_translate_element"></div>
-    <div class="theme-controls">
-      <span class="theme-icon">🌞</span>
-      <label class="theme-switch">
-        <input type="checkbox" id="themeToggle" onchange="handleThemeToggle(this.checked)">
-        <span class="slider"></span>
-      </label>
-      <span class="theme-icon">🌙</span>
+    <div style="display: flex; align-items: center; gap: 1rem;">
+      <span id="network-status-badge" class="badge">Checking connection...</span>
+      <span id="pending-sync-count" class="badge badge-pending hidden"></span>
+      <div class="theme-controls">
+        <span class="theme-icon">🌞</span>
+        <label class="theme-switch">
+          <input type="checkbox" id="themeToggle" onchange="handleThemeToggle(this.checked)">
+          <span class="slider"></span>
+        </label>
+        <span class="theme-icon">🌙</span>
+      </div>
     </div>
   </div>
 
@@ -48,6 +52,36 @@
     }
   </script>
   <script type="text/javascript" src="//translate.google.com/translate_a/element.js?cb=googleTranslateElementInit"></script>
+
+  <!-- Predictive Text Datalists -->
+  <datalist id="needTypesList">
+    <option value="Food & Drinking Water">
+    <option value="Medical & First Aid">
+    <option value="Emergency Shelter">
+    <option value="Search & Rescue">
+    <option value="Clothing & Blankets">
+    <option value="Sanitation & Hygiene Kits">
+    <option value="Power Generators">
+    <option value="Debris Removal & Engineering">
+  </datalist>
+
+  <datalist id="skillsList">
+    <option value="First Aid, Medical Care">
+    <option value="Search & Rescue, Swimming">
+    <option value="Driving (Heavy Vehicle, Boat)">
+    <option value="Logistics & Food Distribution">
+    <option value="Language Translation, Comms">
+    <option value="Trauma Support, Childcare">
+    <option value="Electrical Repair, Generator Tech">
+  </datalist>
+
+  <datalist id="locationsList">
+    <option value="Sector 4 Relief Camp, North District">
+    <option value="Community Center, East Flood Zone">
+    <option value="Central Park Disaster Shelter">
+    <option value="City Stadium Emergency Camp">
+    <option value="Primary Health Center Sub-Station">
+  </datalist>
 
   <!-- AUTHENTICATION SECTION -->
   <div id="auth-section" class="container auth-container active">
@@ -68,7 +102,10 @@
         </div>
         <div class="form-group">
           <label for="loginPassword">Password</label>
-          <input type="password" id="loginPassword" required />
+          <div class="password-wrapper">
+            <input type="password" id="loginPassword" required />
+            <button type="button" class="password-toggle-btn" toggle-for="loginPassword">👁️</button>
+          </div>
         </div>
         <button type="submit" class="btn primary-btn">Login</button>
         <div class="divider"><span>OR</span></div>
@@ -102,7 +139,10 @@
         </div>
         <div class="form-group">
           <label for="regPassword">Password</label>
-          <input type="password" id="regPassword" required />
+          <div class="password-wrapper">
+            <input type="password" id="regPassword" required />
+            <button type="button" class="password-toggle-btn" toggle-for="regPassword">👁️</button>
+          </div>
         </div>
         <button type="submit" class="btn primary-btn">Create Account</button>
         <div class="divider"><span>OR</span></div>
@@ -145,7 +185,7 @@
             
             <div class="form-group">
               <label for="needType">Need Type</label>
-              <input type="text" id="needType" placeholder="Food, Shelter, Medical..." required />
+              <input type="text" id="needType" list="needTypesList" placeholder="Food, Shelter, Medical..." required />
             </div>
             
             <div class="form-group">
@@ -155,7 +195,7 @@
             
             <div class="form-group">
               <label for="requestLocation">Location Name</label>
-              <input type="text" id="requestLocation" required />
+              <input type="text" id="requestLocation" list="locationsList" required />
             </div>
 
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
@@ -314,12 +354,12 @@
 
             <div class="form-group">
               <label for="volSkills">Skills</label>
-              <input type="text" id="volSkills" placeholder="First Aid, Driving..." required />
+              <input type="text" id="volSkills" list="skillsList" placeholder="First Aid, Driving..." required />
             </div>
 
             <div class="form-group">
               <label for="volLocation">Location</label>
-              <input type="text" id="volLocation" required />
+              <input type="text" id="volLocation" list="locationsList" required />
             </div>
 
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
@@ -469,9 +509,6 @@
     <p>CrisisConnect Platform &copy; 2026 | Developed by Saptarshi Sen</p>
   </footer>
   
-  <script type="module" src="app.js"></script>
-</body>
-</html>
   <script type="module" src="app.js"></script>
 </body>
 </html>

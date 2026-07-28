@@ -11,11 +11,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - run: y
       - uses: FirebaseExtended/action-hosting-deploy@v0
         with:
           repoToken: ${{ secrets.GITHUB_TOKEN }}
-          firebaseServiceAccount: ${{
-            secrets.FIREBASE_SERVICE_ACCOUNT_SMART_RESOURCE_ALLOCATIO_FF7E5 }}
+          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_SMART_RESOURCE_ALLOCATIO_FF7E5 }}
           channelId: live
           projectId: smart-resource-allocatio-ff7e5

@@ -1,5 +1,15 @@
 {
+  "name": "smart-resource-allocation",
+  "version": "1.0.0",
+  "description": "CrisisConnect — Smart Disaster Resource Allocation Platform",
+  "scripts": {
+    "dev": "npx http-server . -p 3000 -c-1 --cors -o",
+    "start": "npx http-server . -p 3000 -c-1 --cors"
+  },
   "dependencies": {
     "firebase": "^12.12.1"
+  },
+  "devDependencies": {
+    "http-server": "^14.1.1"
   }
 }
