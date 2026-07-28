@@ -1,3 +1,6 @@
+/* ─── Utility: always hide elements regardless of inline styles ─── */
+.hidden { display: none !important; }
+
 :root {
   --primary: #3b82f6;
   --primary-hover: #2563eb;
