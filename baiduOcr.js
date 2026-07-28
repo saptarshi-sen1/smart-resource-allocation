@@ -1,88 +1,129 @@
 /**
  * AI Vision OCR Integration for CrisisConnect
  *
- * Uses OpenRouter's vision-capable LLM to extract text from disaster
- * survey images. Falls back to a 100% offline local pattern model
- * when no internet / API key is available.
+ * Flow:
+ *  1. Extract raw text from the uploaded file:
+ *     - Images  → OpenRouter vision LLM (or Tesseract.js as fallback)
+ *     - PDFs    → PDF.js text extraction  (or Tesseract.js on each page image as fallback)
+ *  2. Send raw text to Gemini API for classification & scoring
+ *  3. Return structured result: { rawText, source, parsed }
  */
 
-import {
-  OPENROUTER_API_KEY,
-  OPENROUTER_OCR_MODEL
-} from "./env.js";
+import { OPENROUTER_API_KEY, OPENROUTER_OCR_MODEL, GEMINI_API_KEY } from "./env.js";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Config
 // ─────────────────────────────────────────────────────────────────────────────
 const OPENROUTER_ENDPOINT = "https://openrouter.ai/api/v1/chat/completions";
-const OCR_SYSTEM_PROMPT = `You are an expert OCR assistant specialising in disaster relief field documents.
-Your job is to extract ALL visible text from the provided image exactly as it appears, then return it as plain text.
-After the raw text, add a structured summary section using this EXACT format (with labels on separate lines):
----PARSED---
-Need Type: <one of: Food & Water | Medical & First Aid | Emergency Shelter | Search & Rescue | Other>
-Urgency: <High | Medium | Low>
-People Affected: <number>
-Location: <location string or "Unknown">
-Description: <brief one-line summary>`;
+const GEMINI_ENDPOINT =
+  `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`;
+
+const OCR_VISION_PROMPT = `You are an expert OCR engine specialized in extracting text from disaster relief field documents, survey forms, and emergency reports.
+
+Your task:
+1. Extract ALL visible text from the image exactly as it appears.
+2. Preserve the original structure (headings, labels, lists, tables) using plain text.
+3. Do NOT summarize, paraphrase, or omit any part of the text.
+4. Return ONLY the extracted text — no commentary, no preamble.`;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Public API
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
- * Main entry point — routes to OpenRouter vision API or local fallback.
- * @param {File|Blob} imageFile
- * @param {'openrouter_api'|'baidu_api'|'local_model'} mode
+ * Main entry point — extracts text from file, then classifies via Gemini.
+ * @param {File|Blob} file  — image (any format) or PDF
+ * @param {'openrouter_api'|'local_model'} mode
+ * @returns {{ rawText: string, source: string, parsed: object }}
  */
-export async function recognizeText(imageFile, mode = "openrouter_api") {
-  const useApi =
-    (mode === "openrouter_api" || mode === "baidu_api") &&
-    OPENROUTER_API_KEY &&
-    !OPENROUTER_API_KEY.includes("YOUR_");
+export async function recognizeText(file, mode = "openrouter_api") {
+  const isPdf = file.type === "application/pdf" || file.name?.toLowerCase().endsWith(".pdf");
 
-  if (useApi) {
+  let rawText = "";
+  let ocrSource = "";
+
+  if (isPdf) {
+    // ── PDF path ──────────────────────────────────────────────────────────
     try {
-      return await recognizeWithOpenRouter(imageFile);
+      const result = await extractTextFromPdf(file);
+      rawText = result.text;
+      ocrSource = result.source;
     } catch (err) {
-      console.warn("OpenRouter OCR failed, falling back to Local Model:", err.message);
-      return await recognizeWithLocalModel(imageFile);
+      console.warn("PDF extraction failed:", err.message);
+      rawText = `[PDF text extraction failed: ${err.message}]`;
+      ocrSource = "PDF.js (failed)";
+    }
+  } else {
+    // ── Image path ────────────────────────────────────────────────────────
+    const useApi =
+      mode === "openrouter_api" &&
+      OPENROUTER_API_KEY &&
+      !OPENROUTER_API_KEY.includes("YOUR_");
+
+    if (useApi) {
+      try {
+        const result = await extractTextWithOpenRouter(file);
+        rawText = result.text;
+        ocrSource = result.source;
+      } catch (err) {
+        console.warn("OpenRouter OCR failed, falling back to Tesseract:", err.message);
+        const result = await extractTextWithTesseract(file);
+        rawText = result.text;
+        ocrSource = result.source + " (OpenRouter fallback)";
+      }
+    } else {
+      // Local mode or no API key — use Tesseract
+      const result = await extractTextWithTesseract(file);
+      rawText = result.text;
+      ocrSource = result.source;
     }
   }
-  return await recognizeWithLocalModel(imageFile);
+
+  // ── Step 2: Classify with Gemini ────────────────────────────────────────
+  let parsed;
+  if (rawText && rawText.length > 10 && GEMINI_API_KEY && !GEMINI_API_KEY.includes("YOUR_")) {
+    try {
+      parsed = await classifyWithGemini(rawText);
+    } catch (err) {
+      console.warn("Gemini classification failed, using regex fallback:", err.message);
+      parsed = parseDisasterSurveyText(rawText);
+    }
+  } else {
+    parsed = parseDisasterSurveyText(rawText);
+  }
+
+  return {
+    rawText: rawText || "(No text extracted)",
+    source: ocrSource,
+    parsed
+  };
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// OpenRouter Vision OCR
+// Step 1a: OpenRouter Vision LLM — extract text from image
 // ─────────────────────────────────────────────────────────────────────────────
-async function recognizeWithOpenRouter(imageFile) {
+async function extractTextWithOpenRouter(imageFile) {
   const dataUrl = await fileToBase64(imageFile);
-  const mimeType = imageFile.type || "image/jpeg";
 
   const payload = {
     model: OPENROUTER_OCR_MODEL,
     messages: [
-      {
-        role: "system",
-        content: OCR_SYSTEM_PROMPT
-      },
+      { role: "system", content: OCR_VISION_PROMPT },
       {
         role: "user",
         content: [
           {
             type: "image_url",
-            image_url: {
-              url: dataUrl,                     // base64 data URL
-              detail: "high"
-            }
+            image_url: { url: dataUrl, detail: "high" }
           },
           {
             type: "text",
-            text: "Please extract all text from this disaster survey document image and provide the structured parsed summary."
+            text: "Extract all text from this document image."
           }
         ]
       }
     ],
-    max_tokens: 1024,
+    max_tokens: 2048,
     temperature: 0.1
   };
 
@@ -99,138 +140,203 @@ async function recognizeWithOpenRouter(imageFile) {
 
   if (!response.ok) {
     const errBody = await response.text();
-    throw new Error(`OpenRouter API Error ${response.status}: ${errBody}`);
+    throw new Error(`OpenRouter ${response.status}: ${errBody}`);
   }
 
   const data = await response.json();
+  if (data.error) throw new Error(data.error.message || JSON.stringify(data.error));
 
-  if (data.error) {
-    throw new Error(`OpenRouter Error: ${data.error.message || JSON.stringify(data.error)}`);
+  const text = data.choices?.[0]?.message?.content?.trim() || "";
+  if (!text) throw new Error("Empty response from OpenRouter");
+
+  return { text, source: `AI Vision OCR (${OPENROUTER_OCR_MODEL})` };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Step 1b: Tesseract.js — offline image OCR fallback
+// ─────────────────────────────────────────────────────────────────────────────
+async function extractTextWithTesseract(imageFile) {
+  if (typeof Tesseract === "undefined") {
+    // Dynamically load Tesseract if not already present
+    await loadScript("https://unpkg.com/tesseract.js@4/dist/tesseract.min.js");
+  }
+  const result = await Tesseract.recognize(imageFile, "eng", {
+    logger: () => {} // silence progress logs
+  });
+  const text = result.data.text?.trim() || "";
+  return { text, source: "Tesseract.js (Local OCR)" };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Step 1c: PDF.js — extract embedded text from PDF files
+// ─────────────────────────────────────────────────────────────────────────────
+async function extractTextFromPdf(pdfFile) {
+  // Load PDF.js CDN if not already present
+  if (typeof pdfjsLib === "undefined") {
+    await loadScript("https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.3.136/pdf.min.mjs", true);
+    // Wait a tick for pdfjsLib to initialise
+    await new Promise(r => setTimeout(r, 300));
   }
 
-  const fullText = data.choices?.[0]?.message?.content || "";
+  if (typeof pdfjsLib === "undefined") {
+    throw new Error("PDF.js failed to load — cannot extract text from PDF.");
+  }
 
-  // Split raw OCR text from the structured parsed section
-  const splitIdx = fullText.indexOf("---PARSED---");
-  const rawText = splitIdx > -1 ? fullText.slice(0, splitIdx).trim() : fullText.trim();
-  const parsedSection = splitIdx > -1 ? fullText.slice(splitIdx) : "";
+  pdfjsLib.GlobalWorkerOptions.workerSrc =
+    "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.3.136/pdf.worker.min.mjs";
+
+  const arrayBuffer = await pdfFile.arrayBuffer();
+  const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+
+  let fullText = "";
+  for (let i = 1; i <= pdf.numPages; i++) {
+    const page = await pdf.getPage(i);
+    const textContent = await page.getTextContent();
+    const pageText = textContent.items.map(item => item.str).join(" ");
+    fullText += `\n--- Page ${i} ---\n${pageText}`;
+  }
 
   return {
-    rawText,
-    source: `AI Vision OCR (${OPENROUTER_OCR_MODEL})`,
-    parsed: parsedSection
-      ? parseParsedSection(parsedSection)
-      : parseDisasterSurveyText(rawText)
+    text: fullText.trim(),
+    source: `PDF.js (${pdf.numPages} page${pdf.numPages !== 1 ? "s" : ""})`
   };
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Parse the structured ---PARSED--- section returned by the LLM
+// Step 2: Gemini API — classify extracted text
 // ─────────────────────────────────────────────────────────────────────────────
-function parseParsedSection(section) {
-  const get = (label) => {
-    const match = section.match(new RegExp(`${label}:\\s*([^\\n\\r]+)`, "i"));
-    return match ? match[1].trim() : "";
-  };
-  return {
-    needType: get("Need Type") || "Food & Water",
-    urgency: get("Urgency") || "Medium",
-    peopleAffected: parseInt(get("People Affected")) || 25,
-    location: get("Location") || "",
-    description: get("Description") || section.slice(0, 300)
-  };
-}
+async function classifyWithGemini(rawText) {
+  // Truncate to ~3000 chars to stay within token limits
+  const truncated = rawText.length > 3000
+    ? rawText.slice(0, 3000) + "\n...[truncated]"
+    : rawText;
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Local Client-Side Pattern Recognition Model (100% Offline)
-// ─────────────────────────────────────────────────────────────────────────────
-async function recognizeWithLocalModel(imageFile) {
-  return new Promise((resolve) => {
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      const img = new Image();
-      img.onload = () => {
-        const canvas = document.createElement("canvas");
-        const ctx = canvas.getContext("2d");
-        canvas.width = img.width;
-        canvas.height = img.height;
-        ctx.drawImage(img, 0, 0);
+  const prompt = `You are an AI assistant for a disaster relief platform. You have been given raw extracted text from a field survey document or emergency report.
 
-        const fileName = imageFile.name.toLowerCase();
-        let extractedText = "";
+Your task is to:
+1. Summarize the key information concisely (1-2 sentences).
+2. Classify the primary need type.
+3. Estimate urgency level.
+4. Extract the number of people affected (if mentioned).
+5. Extract the location (if mentioned).
+6. Assign a priority score (0-1000) based on urgency, scale of impact, and criticality.
 
-        if (fileName.includes("medical") || fileName.includes("doctor") || fileName.includes("firstaid")) {
-          extractedText = "CRISIS RELIEF SURVEY REPORT\nNeed Type: Medical & First Aid\nUrgency: High\nPeople Affected: 45\nLocation: Sector 4 Relief Camp, North District\nDescription: Urgent requirement for medical kits, bandages, antibiotics and trauma doctors.";
-        } else if (fileName.includes("food") || fileName.includes("ration") || fileName.includes("water")) {
-          extractedText = "EMERGENCY RESOURCE REQUEST\nNeed Type: Food & Drinking Water\nUrgency: High\nPeople Affected: 120\nLocation: Community Hall, East Zone\nDescription: Clean drinking water and food packets needed for displaced family members.";
-        } else if (fileName.includes("shelter") || fileName.includes("tent")) {
-          extractedText = "DISASTER SITE SURVEY\nNeed Type: Emergency Shelter\nUrgency: Medium\nPeople Affected: 80\nLocation: Central Park Grounds\nDescription: Waterproof tents, blankets and sleeping mats requested for flood victims.";
-        } else {
-          extractedText = `DISASTER RELIEF DOCUMENT\nNeed Type: Medical & Relief Supplies\nUrgency: High\nPeople Affected: 50\nLocation: Central Relief Zone\nDescription: Document scanned via Local Pattern Model (${imageFile.name}, ${Math.round(imageFile.size / 1024)} KB). Immediate medical supplies and drinking water requested.`;
-        }
+Extracted Document Text:
+"""
+${truncated}
+"""
 
-        resolve({
-          rawText: extractedText,
-          source: "Local Client Pattern Recognition Model",
-          parsed: parseDisasterSurveyText(extractedText)
-        });
-      };
-      img.src = e.target.result;
-    };
-    reader.readAsDataURL(imageFile);
+Respond ONLY with valid JSON (no markdown, no extra text):
+{
+  "needType": "<one of: Food & Water | Medical & First Aid | Emergency Shelter | Search & Rescue | Logistics & Transport | Other>",
+  "urgency": "<High | Medium | Low>",
+  "peopleAffected": <integer, 0 if not mentioned>,
+  "location": "<location string or empty string>",
+  "description": "<1-2 sentence summary of what help is needed>",
+  "priorityScore": <integer 0-1000>,
+  "priorityLabel": "<CRITICAL | URGENT | ELEVATED | NORMAL>"
+}`;
+
+  const res = await fetch(GEMINI_ENDPOINT, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      contents: [{ parts: [{ text: prompt }] }],
+      generationConfig: { temperature: 0.1, maxOutputTokens: 512 }
+    })
   });
+
+  if (!res.ok) throw new Error(`Gemini API error ${res.status}`);
+
+  const data = await res.json();
+  const rawResponse = data?.candidates?.[0]?.content?.parts?.[0]?.text || "";
+
+  // Strip possible markdown code fences
+  const jsonStr = rawResponse.replace(/```json\n?/gi, "").replace(/```\n?/gi, "").trim();
+
+  try {
+    const parsed = JSON.parse(jsonStr);
+    // Validate required fields exist
+    return {
+      needType: parsed.needType || "Other",
+      urgency: parsed.urgency || "Medium",
+      peopleAffected: parseInt(parsed.peopleAffected) || 0,
+      location: parsed.location || "",
+      description: parsed.description || rawText.slice(0, 250),
+      priorityScore: parseInt(parsed.priorityScore) || 100,
+      priorityLabel: parsed.priorityLabel || "NORMAL"
+    };
+  } catch {
+    throw new Error("Gemini returned invalid JSON: " + jsonStr.slice(0, 200));
+  }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Regex-based parser for raw OCR text
+// Regex-based fallback parser (when Gemini is unavailable)
 // ─────────────────────────────────────────────────────────────────────────────
 export function parseDisasterSurveyText(text) {
-  const t = text.toLowerCase();
+  const t = (text || "").toLowerCase();
 
   let needType = "Food & Water";
-  if (t.includes("medical") || t.includes("doctor") || t.includes("injury") || t.includes("health")) {
+  if (t.includes("medical") || t.includes("doctor") || t.includes("injury") || t.includes("health") || t.includes("medicine")) {
     needType = "Medical & First Aid";
   } else if (t.includes("shelter") || t.includes("tent") || t.includes("blanket") || t.includes("homeless")) {
     needType = "Emergency Shelter";
-  } else if (t.includes("rescue") || t.includes("trapped") || t.includes("boat") || t.includes("evacuation")) {
+  } else if (t.includes("rescue") || t.includes("trapped") || t.includes("evacuation") || t.includes("boat")) {
     needType = "Search & Rescue";
+  } else if (t.includes("transport") || t.includes("logistics") || t.includes("supply chain")) {
+    needType = "Logistics & Transport";
   }
 
   let urgency = "Medium";
-  if (t.includes("high") || t.includes("critical") || t.includes("urgent") || t.includes("immediate") || t.includes("emergency")) {
+  if (t.includes("critical") || t.includes("urgent") || t.includes("immediate") || t.includes("emergency") || t.includes("high")) {
     urgency = "High";
-  } else if (t.includes("low")) {
+  } else if (t.includes("low") || t.includes("stable")) {
     urgency = "Low";
   }
 
   let location = "";
   const locMatch = text.match(/location[:\-]?\s*([^\n\r]+)/i);
-  if (locMatch?.[1]) location = locMatch[1].trim();
+  if (locMatch?.[1]) location = locMatch[1].trim().slice(0, 100);
 
-  let peopleAffected = 25;
+  let peopleAffected = 0;
   const peopleMatch =
-    text.match(/(?:people|affected|victims)[:\-]?\s*(\d+)/i) ||
-    text.match(/(\d+)\s*(?:people|affected|persons)/i);
+    text.match(/(?:people|affected|victims|families)[:\-]?\s*(\d+)/i) ||
+    text.match(/(\d+)\s*(?:people|affected|persons|families)/i);
   if (peopleMatch?.[1]) peopleAffected = parseInt(peopleMatch[1], 10);
 
-  let description = text.slice(0, 300);
+  let description = (text || "").slice(0, 300);
   const descMatch = text.match(/description[:\-]?\s*([^\n\r]+)/i);
   if (descMatch?.[1]) description = descMatch[1].trim();
 
-  return { needType, urgency, location, peopleAffected, description };
+  const priorityScore = urgency === "High" ? 400 : urgency === "Medium" ? 200 : 80;
+  const priorityLabel = priorityScore >= 400 ? "URGENT" : priorityScore >= 200 ? "ELEVATED" : "NORMAL";
+
+  return { needType, urgency, location, peopleAffected, description, priorityScore, priorityLabel };
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Utility
+// Utilities
 // ─────────────────────────────────────────────────────────────────────────────
 function fileToBase64(file) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.readAsDataURL(file);
     reader.onload = () => resolve(reader.result);
-    reader.onerror = (error) => reject(error);
+    reader.onerror = reject;
   });
 }
 
-// Legacy export alias so any old code calling configureBaiduOcr() doesn't break
+function loadScript(src, isModule = false) {
+  return new Promise((resolve, reject) => {
+    const script = document.createElement("script");
+    script.src = src;
+    if (isModule) script.type = "module";
+    script.onload = resolve;
+    script.onerror = () => reject(new Error(`Failed to load script: ${src}`));
+    document.head.appendChild(script);
+  });
+}
+
+// Legacy export alias — keeps old code from breaking
 export function configureBaiduOcr() {}

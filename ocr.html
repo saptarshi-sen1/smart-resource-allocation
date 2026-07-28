@@ -103,7 +103,7 @@
     <div style="text-align: center; margin-bottom: 2rem;">
       <h1 style="font-size: clamp(2rem, 5vw, 3rem); font-weight: 800;">📷 AI Vision OCR Document Studio</h1>
       <p style="color: var(--text-muted); max-width: 650px; margin: 0.5rem auto;">
-        Upload or scan disaster survey forms, paper hand-outs, and emergency field notes. Supports both <strong>AI Vision OCR (OpenRouter)</strong> and <strong>Local Client Recognition Model</strong> for 100% offline operation.
+        Upload disaster survey forms, paper hand-outs, and emergency field notes. Supports <strong>Images</strong> (PNG, JPG, WEBP) and <strong>PDF documents</strong>. Extracted text is classified by <strong>Gemini AI</strong> for need type, urgency, and priority scoring.
       </p>
     </div>
 
@@ -120,11 +120,11 @@
         </div>
 
         <div class="drop-zone" id="dropZone">
-          <span style="font-size: 3rem; display: block; margin-bottom: 0.5rem;">📸</span>
+          <span style="font-size: 3rem; display: block; margin-bottom: 0.5rem;">📄</span>
           <p style="font-weight: 700; margin-bottom: 0.25rem;">Drag & Drop Survey Document Here</p>
-          <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 1rem;">Supports PNG, JPG, JPEG, WEBP</p>
-          <input type="file" id="ocrFileInput" accept="image/*" style="display: none;" />
-          <button type="button" class="btn secondary-btn" onclick="document.getElementById('ocrFileInput').click()">Browse Image File</button>
+          <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 1rem;">Supports PNG, JPG, JPEG, WEBP &amp; <strong>PDF</strong></p>
+          <input type="file" id="ocrFileInput" accept="image/*,.pdf,application/pdf" style="display: none;" />
+          <button type="button" class="btn secondary-btn" onclick="document.getElementById('ocrFileInput').click()">Browse File (Image or PDF)</button>
         </div>
 
         <div id="imagePreviewContainer" class="hidden" style="margin-top: 1.5rem; text-align: center;">
@@ -174,12 +174,23 @@
           </div>
 
           <div class="form-group" style="margin-bottom: 1rem;">
-            <label>Description / Notes</label>
+            <label>Description / Summary (by Gemini)</label>
             <textarea id="extractedDescription" rows="3" readonly></textarea>
           </div>
 
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem;">
+            <div class="form-group">
+              <label>Priority Score</label>
+              <input type="text" id="extractedPriorityScore" readonly />
+            </div>
+            <div class="form-group">
+              <label>Priority Label</label>
+              <input type="text" id="extractedPriorityLabel" readonly />
+            </div>
+          </div>
+
           <div class="form-group" style="margin-bottom: 1.5rem;">
-            <label>Full Extracted Text</label>
+            <label>Full Extracted Text (Raw)</label>
             <div id="rawTextDisplay" class="result-box">Extracted text will appear here...</div>
           </div>
 
@@ -250,18 +261,29 @@
     const submitBtn = document.getElementById('processOcrSubmitBtn');
 
     function handleFile(file) {
-      if (!file || !file.type.startsWith('image/')) {
-        alert('Please select a valid image file.');
+      if (!file) return;
+      const isImage = file.type.startsWith('image/');
+      const isPdf = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
+      if (!isImage && !isPdf) {
+        alert('Please select an image file (PNG, JPG, WEBP) or a PDF document.');
         return;
       }
       currentSelectedFile = file;
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        imagePreview.src = e.target.result;
+      if (isImage) {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          imagePreview.src = e.target.result;
+          imagePreview.style.display = '';
+          previewContainer.classList.remove('hidden');
+        };
+        reader.readAsDataURL(file);
+      } else {
+        // PDF: show a placeholder icon
+        imagePreview.src = 'data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%22120%22 height=%22120%22 viewBox=%220 0 24 24%22><text y=%2220%22 font-size=%2220%22>📄</text><text x=%220%22 y=%2240%22 font-size=%224%22 fill=%22%23666%22>' + encodeURIComponent(file.name) + '</text></svg>';
+        imagePreview.style.display = '';
         previewContainer.classList.remove('hidden');
-        submitBtn.disabled = false;
-      };
-      reader.readAsDataURL(file);
+      }
+      submitBtn.disabled = false;
     }
 
     fileInput.onchange = (e) => handleFile(e.target.files[0]);
@@ -284,6 +306,7 @@
       document.getElementById('ocrStatusSpinner').classList.remove('hidden');
 
       try {
+        document.getElementById('ocrStatusText').textContent = 'Extracting text from document...';
         const result = await recognizeText(currentSelectedFile, activeOcrMode);
         currentExtractedData = result;
 
@@ -291,13 +314,16 @@
         document.getElementById('extractedNeedType').value = result.parsed.needType;
         document.getElementById('extractedUrgency').value = result.parsed.urgency;
         document.getElementById('extractedPeople').value = result.parsed.peopleAffected;
-        document.getElementById('extractedLocation').value = result.parsed.location || 'N/A';
+        document.getElementById('extractedLocation').value = result.parsed.location || '';
         document.getElementById('extractedDescription').value = result.parsed.description;
+        document.getElementById('extractedPriorityScore').value = result.parsed.priorityScore ?? 'N/A';
+        document.getElementById('extractedPriorityLabel').value = result.parsed.priorityLabel ?? 'N/A';
         document.getElementById('rawTextDisplay').textContent = result.rawText;
 
         document.getElementById('ocrStatusSpinner').classList.add('hidden');
         document.getElementById('extractedDataForm').classList.remove('hidden');
       } catch (err) {
+        console.error('OCR Processing failed:', err);
         alert('OCR Processing failed: ' + err.message);
         document.getElementById('ocrStatusSpinner').classList.add('hidden');
         document.getElementById('emptyResultPlaceholder').classList.remove('hidden');

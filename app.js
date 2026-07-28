@@ -718,9 +718,22 @@ document.getElementById("showRegisterBtn").addEventListener("click", () => {
 (async () => {
   const overlay = document.getElementById("loading-overlay");
   if (overlay) overlay.classList.remove("hidden");
-  
+
+  // Safety net: always dismiss spinner after 10 seconds maximum.
+  // This prevents infinite loading if Firebase/network is slow.
+  const overlayTimeout = setTimeout(() => {
+    if (overlay && !overlay.classList.contains("hidden")) {
+      console.warn("Auth overlay safety timeout triggered — forcing auth view.");
+      overlay.classList.add("hidden");
+      if (isInitializingAuth) {
+        isInitializingAuth = false;
+        setView("auth");
+      }
+    }
+  }, 10000);
+
   try {
-    // Process redirect result first
+    // Process redirect result first (Google redirect flow)
     const result = await getRedirectResult(auth);
     if (result && result.user) {
       const pendingRole = sessionStorage.getItem("pendingRegistrationRole");
@@ -731,20 +744,28 @@ document.getElementById("showRegisterBtn").addEventListener("click", () => {
     }
   } catch (err) {
     console.error("Redirect auth error:", err);
-    if (err.code !== 'auth/popup-closed-by-user') {
-      alert("Google sign-in failed: " + err.message);
+    // Don't alert on common non-errors
+    if (err.code && err.code !== 'auth/popup-closed-by-user' && err.code !== 'auth/cancelled-popup-request') {
+      console.warn("Google sign-in redirect failed:", err.message);
     }
   }
 
-  // Now register the state listener
+  // Register the auth state listener
   onAuthStateChanged(auth, async user => {
+    clearTimeout(overlayTimeout); // Cancel safety timeout
     isInitializingAuth = false;
-    if (user) {
-      await handleAuthSuccess(user);
-    } else {
+    try {
+      if (user) {
+        await handleAuthSuccess(user);
+      } else {
+        setView("auth");
+      }
+    } catch (err) {
+      console.error("onAuthStateChanged handler error:", err);
       setView("auth");
+    } finally {
+      if (overlay) overlay.classList.add("hidden");
     }
-    if (overlay) overlay.classList.add("hidden");
   });
 })();
 

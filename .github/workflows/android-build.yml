@@ -24,14 +24,19 @@ jobs:
         java-version: '17'
         distribution: 'temurin'
 
-    - name: Grant execute permission for gradlew
-      run: chmod +x gradlew
-      continue-on-error: true
-
     - name: Setup Gradle
       uses: gradle/actions/setup-gradle@v3
       with:
         gradle-version: '8.4'
+
+    - name: Generate Gradle Wrapper
+      # The android/ directory has no gradlew — generate it with the system Gradle
+      run: |
+        gradle wrapper --gradle-version 8.4 --distribution-type bin
+      working-directory: ./android
+
+    - name: Grant execute permission for gradlew
+      run: chmod +x gradlew
 
     - name: Decode Keystore
       env:
@@ -49,16 +54,18 @@ jobs:
         KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
       run: |
         if [ "$HAS_KEYSTORE" = "true" ]; then
-          ./gradlew assembleRelease
+          ./gradlew assembleRelease --no-daemon
         else
-          echo "No keystore configured, building debug APK instead..."
-          ./gradlew assembleDebug
+          echo "No keystore configured, building debug APK..."
+          ./gradlew assembleDebug --no-daemon
         fi
 
     - name: Upload Android APK Artifact
       uses: actions/upload-artifact@v4
       with:
         name: CrisisConnect-Android-APK
+        # Upload whichever APK was built (release OR debug)
         path: |
           android/app/build/outputs/apk/release/*.apk
           android/app/build/outputs/apk/debug/*.apk
+        if-no-files-found: warn
