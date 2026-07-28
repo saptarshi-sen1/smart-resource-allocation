@@ -221,6 +221,22 @@ function setView(view) {
 }
 
 async function reverseGeocode(lat, lng) {
+  // 1. Try BigDataCloud free client API (CORS-friendly, no API key needed, fast)
+  try {
+    const bdcRes = await fetch(`https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lng}&localityLanguage=en`);
+    if (bdcRes.ok) {
+      const data = await bdcRes.json();
+      const locality = data.locality || data.city || data.localityInfo?.informative?.[0]?.name || "";
+      const region = data.principalSubdivision || "";
+      const country = data.countryName || "";
+      const parts = [locality, region, country].filter(Boolean);
+      if (parts.length > 0) return parts.join(", ");
+    }
+  } catch (e) {
+    console.warn("BigDataCloud geocode error, using Nominatim fallback:", e);
+  }
+
+  // 2. Nominatim fallback
   try {
     const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=14`);
     if (res.ok) {
@@ -230,34 +246,67 @@ async function reverseGeocode(lat, lng) {
       }
     }
   } catch (e) {
-    console.warn("Reverse geocode network error, using lat/lng string fallback:", e);
+    console.warn("Nominatim geocode network error:", e);
   }
+
   return `GPS Location (${parseFloat(lat).toFixed(4)}° N, ${parseFloat(lng).toFixed(4)}° E)`;
 }
 
-function setGeoOnClick(latId, lngId, targetLocId = null) {
-  if (!navigator.geolocation) { alert("Geolocation not supported."); return; }
-  
+export function autoFetchUserLocation(latId, lngId, targetLocId, force = false) {
   const locInput = targetLocId ? document.getElementById(targetLocId) : null;
-  if (locInput) locInput.value = "Fetching address...";
+  const latInput = latId ? document.getElementById(latId) : null;
+  const lngInput = lngId ? document.getElementById(lngId) : null;
 
-  navigator.geolocation.getCurrentPosition(
-    async pos => {
-      const lat = pos.coords.latitude.toFixed(6);
-      const lng = pos.coords.longitude.toFixed(6);
-      document.getElementById(latId).value = lat;
-      document.getElementById(lngId).value = lng;
-      
-      if (locInput) {
+  if (!locInput) return;
+  if (!force && locInput.value.trim() !== "" && locInput.value.trim() !== "Fetching address..." && locInput.value.trim() !== "Detecting location...") {
+    return;
+  }
+
+  locInput.value = "Detecting location...";
+
+  // 1. Try Browser Geolocation API
+  if (navigator.geolocation) {
+    navigator.geolocation.getCurrentPosition(
+      async pos => {
+        const lat = pos.coords.latitude.toFixed(6);
+        const lng = pos.coords.longitude.toFixed(6);
+        if (latInput) latInput.value = lat;
+        if (lngInput) lngInput.value = lng;
         const address = await reverseGeocode(lat, lng);
         locInput.value = address;
+      },
+      async () => {
+        // Geolocation denied/failed -> Fallback to IP-based location
+        await fetchIpLocation(latInput, lngInput, locInput);
+      },
+      { timeout: 8000, maximumAge: 60000 }
+    );
+  } else {
+    fetchIpLocation(latInput, lngInput, locInput);
+  }
+}
+
+async function fetchIpLocation(latInput, lngInput, locInput) {
+  try {
+    const res = await fetch('https://ipapi.co/json/');
+    if (res.ok) {
+      const data = await res.json();
+      if (latInput && !latInput.value) latInput.value = data.latitude ? data.latitude.toFixed(6) : '';
+      if (lngInput && !lngInput.value) lngInput.value = data.longitude ? data.longitude.toFixed(6) : '';
+      const parts = [data.city, data.region, data.country_name].filter(Boolean);
+      if (parts.length > 0 && locInput) {
+        locInput.value = parts.join(', ');
+        return;
       }
-    },
-    () => {
-      alert("Could not get location. Please allow GPS access.");
-      if (locInput) locInput.value = "";
     }
-  );
+  } catch (e) {
+    console.warn("IP location fallback error:", e);
+  }
+  if (locInput) locInput.value = "";
+}
+
+function setGeoOnClick(latId, lngId, targetLocId = null) {
+  autoFetchUserLocation(latId, lngId, targetLocId, true);
 }
 
 // ─── Render helpers ──────────────────────────────────────────────────────────
@@ -452,11 +501,13 @@ async function handleAuthSuccess(user, roleOverride) {
       loadNgoMatches();
       initNgoDashboard();
       loadHistory(user.uid, "ngoTimeline");
+      autoFetchUserLocation("requestLat", "requestLng", "requestLocation");
     } else {
       showSection("volunteer-dashboard");
       loadVolMatches();
       prefillVolunteerForm();
       loadHistory(user.uid, "volunteerTimeline");
+      autoFetchUserLocation("volLat", "volLng", "volLocation");
     }
     
     // Log login

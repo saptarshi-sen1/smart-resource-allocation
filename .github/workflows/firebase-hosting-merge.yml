@@ -11,6 +11,26 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
+      - name: Generate env.js from secrets
+        run: |
+          cat << 'EOF' > env.js
+          export const ADMIN_EMAILS = [
+            "saptarshi.sensxcs@gmail.com",
+            "admin@crisisconnect.org"
+          ];
+
+          export const ADMIN_PASSWORDS = [
+            "Saptarshi@123",
+            "Admin@1234!"
+          ];
+
+          export const GEMINI_API_KEY = "${{ secrets.GEMINI_API_KEY }}";
+          export const OPENROUTER_API_KEY = "${{ secrets.OPENROUTER_API_KEY }}";
+          export const OPENROUTER_OCR_MODEL = "meta-llama/llama-3.2-11b-vision-instruct:free";
+          EOF
+          cp env.js public/env.js 2>/dev/null || true
+
       - uses: FirebaseExtended/action-hosting-deploy@v0
         with:
           repoToken: ${{ secrets.GITHUB_TOKEN }}

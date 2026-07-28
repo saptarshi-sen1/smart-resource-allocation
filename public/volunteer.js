@@ -56,17 +56,41 @@ function initMap() {
 		setLatLng(e.latlng.lat, e.latlng.lng);
 	});
 }
-function setLatLng(lat, lng) {
+async function setLatLng(lat, lng) {
 	document.getElementById('latitude').value = lat;
 	document.getElementById('longitude').value = lng;
 	if (marker) { marker.setLatLng([lat, lng]); }
 	else { marker = L.marker([lat, lng]).addTo(map); }
+	const locInput = document.getElementById('location');
+	if (locInput && (!locInput.value || locInput.value === "Detecting location...")) {
+		try {
+			const bdcRes = await fetch(`https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lng}&localityLanguage=en`);
+			if (bdcRes.ok) {
+				const data = await bdcRes.json();
+				const parts = [data.locality || data.city, data.principalSubdivision, data.countryName].filter(Boolean);
+				if (parts.length > 0) locInput.value = parts.join(', ');
+			}
+		} catch(e) {}
+	}
 }
 document.getElementById('getLocationBtn').onclick = function() {
 	if (navigator.geolocation) {
+		const locInput = document.getElementById('location');
+		if (locInput) locInput.value = "Detecting location...";
 		navigator.geolocation.getCurrentPosition(pos => {
 			setLatLng(pos.coords.latitude, pos.coords.longitude);
 			map.setView([pos.coords.latitude, pos.coords.longitude], 13);
+		}, async () => {
+			try {
+				const res = await fetch('https://ipapi.co/json/');
+				if (res.ok) {
+					const data = await res.json();
+					if (data.latitude && data.longitude) {
+						setLatLng(data.latitude, data.longitude);
+						map.setView([data.latitude, data.longitude], 10);
+					}
+				}
+			} catch(e) {}
 		});
 	} else {
 		alert('Geolocation not supported');
