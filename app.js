@@ -922,7 +922,12 @@ async function prefillVolunteerForm() {
   document.getElementById("volLocation").value = d.location || "";
   document.getElementById("volLat").value = d.latitude || "";
   document.getElementById("volLng").value = d.longitude || "";
-  document.getElementById("volAvailability").value = d.availability || "available";
+  const availability = d.availability || "available";
+  document.getElementById("volAvailability").value = availability;
+  // Sync the custom radio toggle UI
+  const radioId = availability === "available" ? "availableOpt" : "unavailableOpt";
+  const radio = document.getElementById(radioId);
+  if (radio) radio.checked = true;
 }
 
 // Copy volunteer key to clipboard
