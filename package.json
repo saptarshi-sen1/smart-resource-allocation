@@ -1,18 +1,4 @@
 {
-<<<<<<< HEAD
-  "name": "smart-resource-allocation",
-  "version": "1.0.0",
-  "description": "CrisisConnect — Smart Disaster Resource Allocation Platform",
-  "scripts": {
-    "dev": "npx http-server . -p 3000 -c-1 --cors -o",
-    "start": "npx http-server . -p 3000 -c-1 --cors"
-  },
-  "dependencies": {
-    "firebase": "^12.12.1"
-  },
-  "devDependencies": {
-    "http-server": "^14.1.1"
-=======
   "name": "temp-app",
   "version": "0.1.0",
   "private": true,
@@ -56,6 +42,5 @@
     "eslint-config-next": "16.2.11",
     "tailwindcss": "^4",
     "typescript": "^5"
->>>>>>> f59344c (feat: Integrate Hungarian Algorithm Assignment Optimizer into CrisisConnect)
   }
 }
