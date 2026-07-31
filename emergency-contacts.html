@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
+  <meta name="description" content="Comprehensive list of emergency numbers, disaster response helplines, police, ambulance, and rescue control rooms." />
+  <title>Emergency Helplines & Useful Numbers - CrisisConnect</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📞</text></svg>" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css" />
+  <style>
+    .helpline-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 1.5rem;
+      margin-top: 2rem;
+    }
+    .helpline-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 1.5rem;
+      box-shadow: var(--shadow);
+      transition: transform 0.2s ease, border-color 0.2s ease;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+    }
+    .helpline-card:hover {
+      transform: translateY(-3px);
+      border-color: var(--primary);
+    }
+    .helpline-number {
+      font-size: 1.75rem;
+      font-weight: 800;
+      color: var(--primary);
+      margin: 0.5rem 0;
+      font-family: monospace;
+    }
+    .call-btn {
+      background: #22c55e;
+      color: white;
+      text-decoration: none;
+      padding: 0.6rem 1rem;
+      border-radius: 10px;
+      font-weight: 700;
+      text-align: center;
+      display: inline-block;
+      transition: background 0.2s;
+    }
+    .call-btn:hover {
+      background: #16a34a;
+    }
+    .search-filter-bar {
+      display: flex;
+      gap: 1rem;
+      flex-wrap: wrap;
+      margin-bottom: 2rem;
+    }
+    .search-filter-bar input, .search-filter-bar select {
+      flex: 1;
+      min-width: 200px;
+    }
+  </style>
+</head>
+<body class="dark-theme">
+  <div class="top-controls">
+    <div id="google_translate_element"></div>
+    <div style="display: flex; align-items: center; gap: 1rem;">
+      <span id="network-status-badge" class="badge">Checking connection...</span>
+      <span id="pending-sync-count" class="badge badge-pending hidden"></span>
+      <div class="theme-controls">
+        <span class="theme-icon">🌞</span>
+        <label class="theme-switch">
+          <input type="checkbox" id="themeToggle" onchange="handleThemeToggle(this.checked)">
+          <span class="slider"></span>
+        </label>
+        <span class="theme-icon">🌙</span>
+      </div>
+    </div>
+  </div>
+
+  <script src="theme.js"></script>
+
+  <header class="landing-header">
+    <a href="index.html" class="logo">CrisisConnect</a>
+    <button class="menu-toggle" id="menuToggle">☰</button>
+    <nav class="landing-nav" id="landingNav">
+      <a href="index.html">Home</a>
+      <a href="dashboard.html">Dashboard</a>
+      <a href="ocr.html">📷 OCR Studio</a>
+      <a href="emergency-contacts.html" style="color: var(--primary); font-weight: 700;">📞 Helplines</a>
+      <a href="motive.html">Our Motive</a>
+      <a href="instructions.html">Instructions</a>
+      <a href="contact.html">Contact Us</a>
+      <a href="dashboard.html" class="btn primary-btn" style="width: auto; margin-left: 1rem;">Login</a>
+    </nav>
+  </header>
+
+  <main class="container" style="padding-top: 8rem;">
+    <div style="text-align: center; margin-bottom: 2rem;">
+      <h1 style="font-size: clamp(2rem, 5vw, 3rem); font-weight: 800;">📞 Emergency Helplines & Contacts</h1>
+      <p style="color: var(--text-muted); max-width: 650px; margin: 0.5rem auto;">
+        Instant access to essential emergency contact numbers, NDRF control rooms, medical dispatchers, and regional disaster response helplines.
+      </p>
+    </div>
+
+    <div class="search-filter-bar card" style="padding: 1.25rem;">
+      <input type="text" id="helplineSearch" placeholder="Search by name, category, or region (e.g., Police, NDRF, Medical)..." />
+      <select id="helplineCategory">
+        <option value="all">All Categories</option>
+        <option value="disaster">Disaster & Relief</option>
+        <option value="medical">Medical & Ambulance</option>
+        <option value="safety">Police & Fire Safety</option>
+        <option value="helpline">Helplines & Women/Child Support</option>
+      </select>
+    </div>
+
+    <div id="helplineGrid" class="helpline-grid">
+      <!-- Dynamically Rendered Helplines -->
+    </div>
+  </main>
+
+  <footer>
+    <p>CrisisConnect Emergency Directory &copy; 2026 | Developed by Saptarshi Sen</p>
+  </footer>
+
+  <script type="module">
+    import { initOfflineSync } from "./offlineSync.js";
+    initOfflineSync(null, null);
+
+    const HELPLINES = [
+      { name: "National Disaster Management Helpline", number: "1078", category: "disaster", desc: "24/7 National Emergency Operations Centre & Disaster Response dispatch." },
+      { name: "State Disaster Management Authority (SDMA)", number: "1070", category: "disaster", desc: "State level emergency relief and flood control control room." },
+      { name: "NDRF Headquarters Control Room", number: "011-24363260", category: "disaster", desc: "National Disaster Response Force tactical deployment unit." },
+      { name: "National Emergency Number (All-in-One)", number: "112", category: "safety", desc: "Unified emergency services dispatch for Police, Fire and Ambulance." },
+      { name: "Police Emergency", number: "100", category: "safety", desc: "Immediate police assistance and emergency law enforcement." },
+      { name: "Fire & Rescue Department", number: "101", category: "safety", desc: "Fire fighting, building collapse, and hazardous rescue." },
+      { name: "Medical Ambulance Service", number: "108 / 102", category: "medical", desc: "24x7 emergency medical transport and paramedic dispatch." },
+      { name: "Indian Red Cross Society Helpline", number: "011-23716441", category: "medical", desc: "Blood bank, first aid kits, and relief supplies coordination." },
+      { name: "Women Helpline (National)", number: "1091", category: "helpline", desc: "Support and emergency rescue for women in distress." },
+      { name: "Childline (Child Protection)", number: "1098", category: "helpline", desc: "Emergency assistance and shelter for lost or distressed children." },
+      { name: "Mental Health & Trauma Support (KIRAN)", number: "1800-599-0019", category: "helpline", desc: "Psychological support and trauma counseling for disaster survivors." },
+      { name: "Senior Citizen Emergency Helpline", number: "14567", category: "helpline", desc: "Dedicated emergency support for elderly residents." }
+    ];
+
+    const menuToggle = document.getElementById('menuToggle');
+    const landingNav = document.getElementById('landingNav');
+    if (menuToggle) {
+      menuToggle.onclick = (e) => {
+        e.stopPropagation();
+        landingNav.classList.toggle('active');
+      };
+      document.addEventListener('click', () => landingNav.classList.remove('active'));
+    }
+
+    function renderHelplines() {
+      const search = document.getElementById('helplineSearch').value.toLowerCase();
+      const cat = document.getElementById('helplineCategory').value;
+      const grid = document.getElementById('helplineGrid');
+      
+      const filtered = HELPLINES.filter(h => {
+        const matchesCat = cat === 'all' || h.category === cat;
+        const matchesSearch = !search || h.name.toLowerCase().includes(search) || h.number.includes(search) || h.desc.toLowerCase().includes(search);
+        return matchesCat && matchesSearch;
+      });
+
+      if (filtered.length === 0) {
+        grid.innerHTML = `<div class="card" style="grid-column: 1 / -1; text-align: center; padding: 3rem;"><p>No emergency numbers match your search.</p></div>`;
+        return;
+      }
+
+      grid.innerHTML = filtered.map(h => `
+        <div class="helpline-card">
+          <div>
+            <span class="badge" style="background: rgba(59, 130, 246, 0.15); color: var(--primary); text-transform: uppercase;">${h.category}</span>
+            <h3 style="margin: 0.75rem 0 0.25rem;">${h.name}</h3>
+            <div class="helpline-number">${h.number}</div>
+            <p style="color: var(--text-muted); font-size: 0.85rem; margin-bottom: 1.25rem;">${h.desc}</p>
+          </div>
+          <div style="display: flex; gap: 0.5rem;">
+            <a href="tel:${h.number.replace(/[^0-9+]/g, '')}" class="call-btn" style="flex: 1;">📞 Tap to Call</a>
+            <button class="btn secondary-btn" style="padding: 0.6rem 0.8rem;" onclick="navigator.clipboard.writeText('${h.number}'); alert('Copied ${h.number}')">📋</button>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    document.getElementById('helplineSearch').oninput = renderHelplines;
+    document.getElementById('helplineCategory').onchange = renderHelplines;
+    renderHelplines();
+  </script>
+</body>
+</html>

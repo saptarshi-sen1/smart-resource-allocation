@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
+  <meta name="description" content="AI-powered Vision OCR & Document Scanning Studio for Disaster Resource Management. Powered by OpenRouter LLM." />
+  <title>AI Vision OCR Document Studio - CrisisConnect</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📷</text></svg>" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css" />
+  <style>
+    .ocr-container {
+      max-width: 1000px;
+      margin: 2rem auto;
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+      gap: 2rem;
+    }
+    .drop-zone {
+      border: 2px dashed var(--primary);
+      border-radius: 16px;
+      padding: 2.5rem 1.5rem;
+      text-align: center;
+      background: rgba(59, 130, 246, 0.03);
+      cursor: pointer;
+      transition: all 0.3s ease;
+    }
+    .drop-zone:hover, .drop-zone.dragover {
+      background: rgba(59, 130, 246, 0.1);
+      border-color: var(--primary-hover);
+    }
+    .ocr-mode-selector {
+      display: flex;
+      gap: 1rem;
+      margin-bottom: 1.5rem;
+    }
+    .ocr-mode-btn {
+      flex: 1;
+      padding: 0.75rem;
+      border: 1px solid var(--border);
+      background: var(--card);
+      color: var(--text);
+      border-radius: 10px;
+      cursor: pointer;
+      font-weight: 600;
+      transition: all 0.2s;
+    }
+    .ocr-mode-btn.active {
+      background: var(--primary);
+      color: white;
+      border-color: var(--primary);
+    }
+    .result-box {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 1rem;
+      font-family: monospace;
+      font-size: 0.9rem;
+      white-space: pre-wrap;
+      max-height: 250px;
+      overflow-y: auto;
+      color: var(--text);
+    }
+  </style>
+</head>
+<body class="dark-theme">
+  <div class="top-controls">
+    <div id="google_translate_element"></div>
+    <div style="display: flex; align-items: center; gap: 1rem;">
+      <span id="network-status-badge" class="badge">Checking connection...</span>
+      <span id="pending-sync-count" class="badge badge-pending hidden"></span>
+      <div class="theme-controls">
+        <span class="theme-icon">🌞</span>
+        <label class="theme-switch">
+          <input type="checkbox" id="themeToggle" onchange="handleThemeToggle(this.checked)">
+          <span class="slider"></span>
+        </label>
+        <span class="theme-icon">🌙</span>
+      </div>
+    </div>
+  </div>
+
+  <script src="theme.js"></script>
+
+  <header class="landing-header">
+    <a href="index.html" class="logo">CrisisConnect</a>
+    <button class="menu-toggle" id="menuToggle">☰</button>
+    <nav class="landing-nav" id="landingNav">
+      <a href="index.html">Home</a>
+      <a href="dashboard.html">Dashboard</a>
+      <a href="ocr.html" style="color: var(--primary); font-weight: 700;">📷 OCR Studio</a>
+      <a href="emergency-contacts.html">📞 Helplines</a>
+      <a href="motive.html">Our Motive</a>
+      <a href="instructions.html">Instructions</a>
+      <a href="contact.html">Contact Us</a>
+      <a href="dashboard.html" class="btn primary-btn" style="width: auto; margin-left: 1rem;">Login</a>
+    </nav>
+  </header>
+
+  <main class="container" style="padding-top: 8rem;">
+    <div style="text-align: center; margin-bottom: 2rem;">
+      <h1 style="font-size: clamp(2rem, 5vw, 3rem); font-weight: 800;">📷 AI Vision OCR Document Studio</h1>
+      <p style="color: var(--text-muted); max-width: 650px; margin: 0.5rem auto;">
+        Upload disaster survey forms, paper hand-outs, and emergency field notes. Supports <strong>Images</strong> (PNG, JPG, WEBP) and <strong>PDF documents</strong>. Extracted text is classified by <strong>Gemini AI</strong> for need type, urgency, and priority scoring.
+      </p>
+    </div>
+
+    <div class="ocr-container">
+      <!-- Upload & Mode Selection Card -->
+      <div class="card">
+        <h2>1. Select OCR Engine & Upload</h2>
+        <p class="subtitle" style="margin-bottom: 1.5rem;">Choose processing mode and select image</p>
+
+        <label style="font-weight: 600; margin-bottom: 0.5rem; display: block;">OCR Engine Mode:</label>
+        <div class="ocr-mode-selector">
+          <button type="button" id="modeBaiduApiBtn" class="ocr-mode-btn active">🤖 AI Vision OCR (OpenRouter)</button>
+          <button type="button" id="modeLocalModelBtn" class="ocr-mode-btn">💻 Local Client Model</button>
+        </div>
+
+        <div class="drop-zone" id="dropZone">
+          <span style="font-size: 3rem; display: block; margin-bottom: 0.5rem;">📄</span>
+          <p style="font-weight: 700; margin-bottom: 0.25rem;">Drag & Drop Survey Document Here</p>
+          <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 1rem;">Supports PNG, JPG, JPEG, WEBP &amp; <strong>PDF</strong></p>
+          <input type="file" id="ocrFileInput" accept="image/*,.pdf,application/pdf" style="display: none;" />
+          <button type="button" class="btn secondary-btn" onclick="document.getElementById('ocrFileInput').click()">Browse File (Image or PDF)</button>
+        </div>
+
+        <div id="imagePreviewContainer" class="hidden" style="margin-top: 1.5rem; text-align: center;">
+          <img id="imagePreview" src="" alt="Selected Survey" style="max-width: 100%; max-height: 250px; border-radius: 12px; border: 1px solid var(--border);" />
+        </div>
+
+        <button type="button" id="processOcrSubmitBtn" class="btn primary-btn" style="width: 100%; margin-top: 1.5rem;" disabled>
+          Process Document with AI Vision OCR
+        </button>
+      </div>
+
+      <!-- Result & Structured Data Extraction Card -->
+      <div class="card">
+        <h2>2. Extracted Data & Form Export</h2>
+        <p class="subtitle" style="margin-bottom: 1.5rem;">Structured resource allocation values</p>
+
+        <div id="ocrStatusSpinner" class="hidden" style="text-align: center; padding: 2rem 0;">
+          <div class="spinner" style="margin: 0 auto 1rem;"></div>
+          <p id="ocrStatusText" style="color: var(--primary); font-weight: 600;">Processing document text...</p>
+        </div>
+
+        <div id="extractedDataForm" class="hidden">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem;">
+            <span class="badge" id="engineSourceBadge" style="background: var(--primary);">Engine: AI Vision OCR</span>
+            <button type="button" id="copyRawBtn" class="btn secondary-btn" style="padding: 0.3rem 0.75rem; font-size: 0.8rem;">📋 Copy Raw Text</button>
+          </div>
+
+          <div class="form-group" style="margin-bottom: 1rem;">
+            <label>Need Type</label>
+            <input type="text" id="extractedNeedType" readonly />
+          </div>
+
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem;">
+            <div class="form-group">
+              <label>Urgency Level</label>
+              <input type="text" id="extractedUrgency" readonly />
+            </div>
+            <div class="form-group">
+              <label>People Affected</label>
+              <input type="text" id="extractedPeople" readonly />
+            </div>
+          </div>
+
+          <div class="form-group" style="margin-bottom: 1rem;">
+            <label>Location</label>
+            <input type="text" id="extractedLocation" readonly />
+          </div>
+
+          <div class="form-group" style="margin-bottom: 1rem;">
+            <label>Description / Summary (by Gemini)</label>
+            <textarea id="extractedDescription" rows="3" readonly></textarea>
+          </div>
+
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem;">
+            <div class="form-group">
+              <label>Priority Score</label>
+              <input type="text" id="extractedPriorityScore" readonly />
+            </div>
+            <div class="form-group">
+              <label>Priority Label</label>
+              <input type="text" id="extractedPriorityLabel" readonly />
+            </div>
+          </div>
+
+          <div class="form-group" style="margin-bottom: 1.5rem;">
+            <label>Full Extracted Text (Raw)</label>
+            <div id="rawTextDisplay" class="result-box">Extracted text will appear here...</div>
+          </div>
+
+          <div style="display: flex; gap: 1rem;">
+            <button type="button" id="exportToDashboardBtn" class="btn primary-btn" style="flex: 1;">
+              📥 Export to Request Form
+            </button>
+          </div>
+        </div>
+
+        <div id="emptyResultPlaceholder" style="text-align: center; padding: 3rem 1rem; color: var(--text-muted);">
+          <span style="font-size: 3rem; display: block; margin-bottom: 0.5rem;">📄</span>
+          <p>Select an image and click <strong>Process Document</strong> to extract structured information.</p>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <footer>
+    <p>CrisisConnect AI Vision OCR Module &copy; 2026 | Developed by Saptarshi Sen</p>
+  </footer>
+
+  <script type="module">
+    import { recognizeText } from "./baiduOcr.js";
+    import { initOfflineSync } from "./offlineSync.js";
+
+
+    initOfflineSync(null, null);
+
+    let activeOcrMode = 'openrouter_api';
+    let currentSelectedFile = null;
+    let currentExtractedData = null;
+
+    // Mobile nav toggle
+    const menuToggle = document.getElementById('menuToggle');
+    const landingNav = document.getElementById('landingNav');
+    if (menuToggle) {
+      menuToggle.onclick = (e) => {
+        e.stopPropagation();
+        landingNav.classList.toggle('active');
+      };
+      document.addEventListener('click', () => landingNav.classList.remove('active'));
+    }
+
+    // Mode Toggle Buttons
+    const modeBaiduBtn = document.getElementById('modeBaiduApiBtn');
+    const modeLocalBtn = document.getElementById('modeLocalModelBtn');
+
+    modeBaiduBtn.onclick = () => {
+      activeOcrMode = 'openrouter_api';
+      modeBaiduBtn.classList.add('active');
+      modeLocalBtn.classList.remove('active');
+      document.getElementById('processOcrSubmitBtn').textContent = "Process Document with AI Vision OCR";
+    };
+
+    modeLocalBtn.onclick = () => {
+      activeOcrMode = 'local_model';
+      modeLocalBtn.classList.add('active');
+      modeBaiduBtn.classList.remove('active');
+      document.getElementById('processOcrSubmitBtn').textContent = "Process Document with Local Client Model";
+    };
+
+    // File Selection & Drag Drop
+    const fileInput = document.getElementById('ocrFileInput');
+    const dropZone = document.getElementById('dropZone');
+    const previewContainer = document.getElementById('imagePreviewContainer');
+    const imagePreview = document.getElementById('imagePreview');
+    const submitBtn = document.getElementById('processOcrSubmitBtn');
+
+    function handleFile(file) {
+      if (!file) return;
+      const isImage = file.type.startsWith('image/');
+      const isPdf = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
+      if (!isImage && !isPdf) {
+        alert('Please select an image file (PNG, JPG, WEBP) or a PDF document.');
+        return;
+      }
+      currentSelectedFile = file;
+      if (isImage) {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          imagePreview.src = e.target.result;
+          imagePreview.style.display = '';
+          previewContainer.classList.remove('hidden');
+        };
+        reader.readAsDataURL(file);
+      } else {
+        // PDF: show a placeholder icon
+        imagePreview.src = 'data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%22120%22 height=%22120%22 viewBox=%220 0 24 24%22><text y=%2220%22 font-size=%2220%22>📄</text><text x=%220%22 y=%2240%22 font-size=%224%22 fill=%22%23666%22>' + encodeURIComponent(file.name) + '</text></svg>';
+        imagePreview.style.display = '';
+        previewContainer.classList.remove('hidden');
+      }
+      submitBtn.disabled = false;
+    }
+
+    fileInput.onchange = (e) => handleFile(e.target.files[0]);
+
+    dropZone.ondragover = (e) => { e.preventDefault(); dropZone.classList.add('dragover'); };
+    dropZone.ondragleave = () => dropZone.classList.remove('dragover');
+    dropZone.ondrop = (e) => {
+      e.preventDefault();
+      dropZone.classList.remove('dragover');
+      if (e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0]);
+    };
+
+    // Process Submit
+    submitBtn.onclick = async () => {
+      if (!currentSelectedFile) return;
+      
+      submitBtn.disabled = true;
+      document.getElementById('emptyResultPlaceholder').classList.add('hidden');
+      document.getElementById('extractedDataForm').classList.add('hidden');
+      document.getElementById('ocrStatusSpinner').classList.remove('hidden');
+
+      try {
+        document.getElementById('ocrStatusText').textContent = 'Extracting text from document...';
+        const result = await recognizeText(currentSelectedFile, activeOcrMode);
+        currentExtractedData = result;
+
+        document.getElementById('engineSourceBadge').textContent = `Engine: ${result.source}`;
+        document.getElementById('extractedNeedType').value = result.parsed.needType;
+        document.getElementById('extractedUrgency').value = result.parsed.urgency;
+        document.getElementById('extractedPeople').value = result.parsed.peopleAffected;
+        document.getElementById('extractedLocation').value = result.parsed.location || '';
+        document.getElementById('extractedDescription').value = result.parsed.description;
+        document.getElementById('extractedPriorityScore').value = result.parsed.priorityScore ?? 'N/A';
+        document.getElementById('extractedPriorityLabel').value = result.parsed.priorityLabel ?? 'N/A';
+        document.getElementById('rawTextDisplay').textContent = result.rawText;
+
+        document.getElementById('ocrStatusSpinner').classList.add('hidden');
+        document.getElementById('extractedDataForm').classList.remove('hidden');
+      } catch (err) {
+        console.error('OCR Processing failed:', err);
+        alert('OCR Processing failed: ' + err.message);
+        document.getElementById('ocrStatusSpinner').classList.add('hidden');
+        document.getElementById('emptyResultPlaceholder').classList.remove('hidden');
+      } finally {
+        submitBtn.disabled = false;
+      }
+    };
+
+    // Copy Raw Text
+    document.getElementById('copyRawBtn').onclick = () => {
+      const text = document.getElementById('rawTextDisplay').textContent;
+      navigator.clipboard.writeText(text).then(() => alert('Copied text to clipboard!'));
+    };
+
+    // Export to Dashboard
+    document.getElementById('exportToDashboardBtn').onclick = () => {
+      if (!currentExtractedData) return;
+      sessionStorage.setItem('pending_ocr_export', JSON.stringify(currentExtractedData.parsed));
+      window.location.href = 'dashboard.html';
+    };
+  </script>
+</body>
+</html>
